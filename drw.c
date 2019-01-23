@@ -65,7 +65,7 @@ static size_t utf8decode(const char* c, long* u, size_t clen) {
 }
 
 Drw* drw_create(Display* dpy, int screen, Window root, unsigned int w, unsigned int h) {
-	/*!
+	/*! \brief Create drawing context
   **/
 
 	Drw* drw = ecalloc(1, sizeof(Drw));
@@ -75,9 +75,9 @@ Drw* drw_create(Display* dpy, int screen, Window root, unsigned int w, unsigned 
 	drw->root = root;
 	drw->w = w;
 	drw->h = h;
-	drw->drawable = XCreatePixmap(dpy, root, w, h, DefaultDepth(dpy, screen));
-	drw->gc = XCreateGC(dpy, root, 0, NULL);
-	XSetLineAttributes(dpy, drw->gc, 1, LineSolid, CapButt, JoinMiter);
+	drw->drawable = XCreatePixmap(dpy, root, w, h, DefaultDepth(dpy, screen)); //create pixmap with given parameters
+	drw->gc = XCreateGC(dpy, root, 0, NULL); //create graphics context
+	XSetLineAttributes(dpy, drw->gc, 1, LineSolid, CapButt, JoinMiter); //configure how lines will look like
 
 	return drw;
 }
@@ -105,34 +105,34 @@ void drw_free(Drw* drw) {
 	free(drw);
 }
 
-/* This function is an implementation detail. Library users should use
- * drw_fontset_create instead.
- */
 static Fnt* xfont_create(Drw* drw, const char* fontname, FcPattern* fontpattern) {
-	/*!
+	/*! \brief Creates font from either name or pattern
+	 *
+	 * This function is an implementation detail. Library users should use
+	 * drw_fontset_create() instead.
   **/
 
 	Fnt* font;
 	XftFont* xfont = NULL;
 	FcPattern* pattern = NULL;
 
-	if (fontname) {
+	if (fontname) { //use name
 		/* Using the pattern found at font->xfont->pattern does not yield the
 		 * same substitution results as using the pattern returned by
 		 * FcNameParse; using the latter results in the desired fallback
 		 * behaviour whereas the former just results in missing-character
 		 * rectangles being drawn, at least with some fonts. */
-		if (!(xfont = XftFontOpenName(drw->dpy, drw->screen, fontname))) {
+		if (!(xfont = XftFontOpenName(drw->dpy, drw->screen, fontname))) { //try to load font from name
 			fprintf(stderr, "error, cannot load font from name: '%s'\n", fontname);
 			return NULL;
 		}
-		if (!(pattern = FcNameParse((FcChar8*) fontname))) {
+		if (!(pattern = FcNameParse((FcChar8*) fontname))) { //get pattern from name
 			fprintf(stderr, "error, cannot parse font name to pattern: '%s'\n", fontname);
 			XftFontClose(drw->dpy, xfont);
 			return NULL;
 		}
-	} else if (fontpattern) {
-		if (!(xfont = XftFontOpenPattern(drw->dpy, fontpattern))) {
+	} else if (fontpattern) { //use pattern
+		if (!(xfont = XftFontOpenPattern(drw->dpy, fontpattern))) { //try to load font from pattern
 			fprintf(stderr, "error, cannot load font from pattern.\n");
 			return NULL;
 		}
@@ -162,7 +162,7 @@ static void xfont_free(Fnt* font) {
 }
 
 Fnt* drw_fontset_create(Drw* drw, const char* fonts[], size_t fontcount) {
-	/*!
+	/*! \brief Create a linked list of fonts and associates it with a drawing context
   **/
 
 	Fnt* cur, *ret = NULL;
@@ -191,7 +191,7 @@ void drw_fontset_free(Fnt* font) {
 }
 
 void drw_clr_create(Drw* drw, Clr* dest, const char* clrname) {
-	/*!
+	/*! \brief Populates color from name
   **/
 
 	if (!drw || !dest || !clrname)
@@ -199,14 +199,15 @@ void drw_clr_create(Drw* drw, Clr* dest, const char* clrname) {
 
 	if (!XftColorAllocName(drw->dpy, DefaultVisual(drw->dpy, drw->screen),
 	                       DefaultColormap(drw->dpy, drw->screen),
-	                       clrname, dest))
+	                       clrname, dest)) //allocate color on server with default visual and colormap
 		die("error, cannot allocate color '%s'", clrname);
 }
 
-/* Wrapper to create color schemes. The caller has to call free(3) on the
- * returned color scheme when done using it. */
 Clr* drw_scm_create(Drw* drw, const char* clrnames[], size_t clrcount) {
-	/*!
+	/*! \brief Wrapper to create color schemes
+	 *
+	 * The caller has to call *free(3)* on the
+	 * returned color scheme when done using it.
   **/
 
 	size_t i;
@@ -418,7 +419,7 @@ void drw_font_getexts(Fnt* font, const char* text, unsigned int len, unsigned in
 }
 
 Cur* drw_cur_create(Drw* drw, int shape) {
-	/*!
+	/*! \brief Create font cursor of standard shape
   **/
 
 	Cur* cur;
@@ -426,7 +427,7 @@ Cur* drw_cur_create(Drw* drw, int shape) {
 	if (!drw || !(cur = ecalloc(1, sizeof(Cur))))
 		return NULL;
 
-	cur->cursor = XCreateFontCursor(drw->dpy, shape);
+	cur->cursor = XCreateFontCursor(drw->dpy, shape); //create font cursor
 
 	return cur;
 }

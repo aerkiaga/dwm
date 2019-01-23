@@ -51,7 +51,7 @@
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
                                * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
 #define ISVISIBLE(C)            ((C->tags & C->mon->tagset[C->mon->seltags]))
-#define LENGTH(X)               (sizeof X / sizeof X[0])
+#define LENGTH(X)               (sizeof X / sizeof X[0]) //!< Number of elements in a static array
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
@@ -59,14 +59,14 @@
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
 
 /* enums */
-enum { CurNormal, CurResize, CurMove, CurLast }; /* cursor */
-enum { SchemeNorm, SchemeSel }; /* color schemes */
+enum { CurNormal, CurResize, CurMove, CurLast }; //!< cursor
+enum { SchemeNorm, SchemeSel }; //!< color schemes
 enum { NetSupported, NetWMName, NetWMState, NetWMCheck,
        NetWMFullscreen, NetActiveWindow, NetWMWindowType,
-       NetWMWindowTypeDialog, NetClientList, NetLast }; /* EWMH atoms */
-enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast }; /* default atoms */
+       NetWMWindowTypeDialog, NetClientList, NetLast }; //!< EWMH atoms
+enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast }; //!< default atoms
 enum { ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
-       ClkClientWin, ClkRootWin, ClkLast }; /* clicks */
+       ClkClientWin, ClkRootWin, ClkLast }; //!< clicks
 
 typedef union {
 	int i;
@@ -117,14 +117,14 @@ struct Monitor {
 	float mfact;
 	int nmaster;
 	int num;
-	int by;               /* bar geometry */
-	int mx, my, mw, mh;   /* screen size */
-	int wx, wy, ww, wh;   /* window area  */
+	int by;               //!< bar geometry
+	int mx, my, mw, mh;   //!< screen size
+	int wx, wy, ww, wh;   //!< window area
 	unsigned int seltags;
 	unsigned int sellt;
 	unsigned int tagset[2];
-	int showbar;
-	int topbar;
+	int showbar; //!< show/hide bar
+	int topbar; //!< bar at the top/bottom
 	Client* clients;
 	Client* sel;
 	Client* stack;
@@ -239,9 +239,9 @@ static void zoom(const Arg* arg);
 static const char broken[] = "broken";
 static char stext[256];
 static int screen;
-static int sw, sh;           /* X display screen geometry width, height */
-static int bh, blw = 0;      /* bar geometry */
-static int lrpad;            /* sum of left and right padding for text */
+static int sw, sh;           //!< X display screen geometry width, height
+static int bh, blw = 0;      //!< bar geometry
+static int lrpad;            //!< sum of left and right padding for text
 static int (*xerrorxlib)(Display*, XErrorEvent*);
 static unsigned int numlockmask = 0;
 static void (*handler[LASTEvent]) (XEvent*) = {
@@ -263,7 +263,7 @@ static void (*handler[LASTEvent]) (XEvent*) = {
 static Atom wmatom[WMLast], netatom[NetLast];
 static int running = 1;
 static Cur* cursor[CurLast];
-static Clr **scheme;
+static Clr** scheme; //!< Loaded color scheme
 static Display* dpy;
 static Drw* drw;
 static Monitor* mons, *selmon;
@@ -464,15 +464,16 @@ void buttonpress(XEvent* e) {
 }
 
 void checkotherwm(void) {
-  /*!
+  /*! \brief Check if another WM is running
+   *
+   * Also sets xerror() as error handler.
   **/
 
 	xerrorxlib = XSetErrorHandler(xerrorstart);
-	/* this causes an error if some other window manager is running */
-	XSelectInput(dpy, DefaultRootWindow(dpy), SubstructureRedirectMask);
-	XSync(dpy, False);
+	XSelectInput(dpy, DefaultRootWindow(dpy), SubstructureRedirectMask); //this causes an error if some other window manager is running
+	XSync(dpy, False); //flush X server, call error handlers
 	XSetErrorHandler(xerror);
-	XSync(dpy, False);
+	XSync(dpy, False); //flush X server, call error handlers
 }
 
 void cleanup(void) {
@@ -642,8 +643,10 @@ void configurerequest(XEvent* e) {
 	XSync(dpy, False);
 }
 
-Monitor* createmon(void)
-{
+Monitor* createmon(void) {
+  /*! \brief Create monitor from global parameters
+  **/
+
 	Monitor* m;
 
 	m = ecalloc(1, sizeof(Monitor));
@@ -673,7 +676,7 @@ void detach(Client* c) {
   /*!
   **/
 
-	Client **tc;
+	Client** tc;
 
 	for (tc = &c->mon->clients; *tc && *tc != c; tc = &(*tc)->next);
 	*tc = c->next;
@@ -683,7 +686,7 @@ void detachstack(Client* c) {
   /*!
   **/
 
-	Client **tc, *t;
+	Client** tc, *t;
 
 	for (tc = &c->mon->stack; *tc && *tc != c; tc = &(*tc)->snext);
 	*tc = c->snext;
@@ -918,7 +921,7 @@ long getstate(Window w) {
 	Atom real;
 
 	if (XGetWindowProperty(dpy, w, wmatom[WMState], 0L, 2L, False, wmatom[WMState],
-		&real, &format, &n, &extra, (unsigned char **)&p) != Success)
+		&real, &format, &n, &extra, (unsigned char**)&p) != Success)
 		return -1;
 	if (n != 0)
 		result = *p;
@@ -930,7 +933,7 @@ int gettextprop(Window w, Atom atom, char* text, unsigned int size) {
   /*!
   **/
 
-	char **list = NULL;
+	char** list = NULL;
 	int n;
 	XTextProperty name;
 
@@ -1416,7 +1419,7 @@ void restack(Monitor* m) {
 }
 
 void run(void) {
-  /*!
+  /*! \brief Main program loop
   **/
 
 	XEvent ev;
@@ -1582,7 +1585,7 @@ void setmfact(const Arg* arg) {
 }
 
 void setup(void) {
-  /*!
+  /*! \brief Initialization routine
   **/
 
 	int i;
@@ -1593,14 +1596,14 @@ void setup(void) {
 	sigchld(0);
 
 	/* init screen */
-	screen = DefaultScreen(dpy);
+	screen = DefaultScreen(dpy); //get default open screen number
 	sw = DisplayWidth(dpy, screen);
 	sh = DisplayHeight(dpy, screen);
 	root = RootWindow(dpy, screen);
 	drw = drw_create(dpy, screen, root, sw, sh);
 	if (!drw_fontset_create(drw, fonts, LENGTH(fonts)))
 		die("no fonts could be loaded.");
-	lrpad = drw->fonts->h;
+	lrpad = drw->fonts->h; //left + right font padding = font height
 	bh = drw->fonts->h + 2;
 	updategeom();
 	/* init atoms */
@@ -1619,13 +1622,13 @@ void setup(void) {
 	netatom[NetWMWindowTypeDialog] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DIALOG", False);
 	netatom[NetClientList] = XInternAtom(dpy, "_NET_CLIENT_LIST", False);
 	/* init cursors */
-	cursor[CurNormal] = drw_cur_create(drw, XC_left_ptr);
-	cursor[CurResize] = drw_cur_create(drw, XC_sizing);
-	cursor[CurMove] = drw_cur_create(drw, XC_fleur);
+	cursor[CurNormal] = drw_cur_create(drw, XC_left_ptr); //standard arrow cursor
+	cursor[CurResize] = drw_cur_create(drw, XC_sizing); //resizing cursor
+	cursor[CurMove] = drw_cur_create(drw, XC_fleur); //four crossed arrows
 	/* init appearance */
 	scheme = ecalloc(LENGTH(colors), sizeof(Clr*));
-	for (i = 0; i < LENGTH(colors); i++)
-		scheme[i] = drw_scm_create(drw, colors[i], 3);
+	for (i = 0; i < LENGTH(colors); i++) //for each scheme in scheme list
+		scheme[i] = drw_scm_create(drw, colors[i], 3); //3 colors in a scheme
 	/* init bars */
 	updatebars();
 	updatestatus();
@@ -1705,8 +1708,8 @@ void spawn(const Arg* arg) {
 		if (dpy)
 			close(ConnectionNumber(dpy));
 		setsid();
-		execvp(((char **)arg->v)[0], (char **)arg->v);
-		fprintf(stderr, "dwm: execvp %s", ((char **)arg->v)[0]);
+		execvp(((char**)arg->v)[0], (char**)arg->v);
+		fprintf(stderr, "dwm: execvp %s", ((char**)arg->v)[0]);
 		perror(" failed");
 		exit(EXIT_SUCCESS);
 	}
@@ -1874,11 +1877,11 @@ void updatebars(void) {
 
 	Monitor* m;
 	XSetWindowAttributes wa = {
-		.override_redirect = True,
-		.background_pixmap = ParentRelative,
-		.event_mask = ButtonPressMask|ExposureMask
+		.override_redirect = True, //don't redirect map/configure requests to parent
+		.background_pixmap = ParentRelative, //use parent's background (aligned with parent)
+		.event_mask = ButtonPressMask|ExposureMask //get button presses and exposed invalid areas
 	};
-	XClassHint ch = {"dwm", "dwm"};
+	XClassHint ch = {"dwm", "dwm"}; //application name and class
 	for (m = mons; m; m = m->next) {
 		if (m->barwin)
 			continue;
@@ -1892,16 +1895,16 @@ void updatebars(void) {
 }
 
 void updatebarpos(Monitor* m) {
-  /*!
+  /*! \brief Update bar position to show/hide on top/bottom
   **/
 
 	m->wy = m->my;
 	m->wh = m->mh;
-	if (m->showbar) {
+	if (m->showbar) { //show bar
 		m->wh -= bh;
 		m->by = m->topbar ? m->wy : m->wy + m->wh;
 		m->wy = m->topbar ? m->wy + bh : m->wy;
-	} else
+	} else //hide bar
 		m->by = -bh;
 }
 
@@ -1985,7 +1988,7 @@ int updategeom(void) {
 	{ /* default monitor setup */
 		if (!mons)
 			mons = createmon();
-		if (mons->mw != sw || mons->mh != sh) {
+		if (mons->mw != sw || mons->mh != sh) { //if monitor size != X display size
 			dirty = 1;
 			mons->mw = mons->ww = sw;
 			mons->mh = mons->wh = sh;
@@ -2157,11 +2160,12 @@ Monitor* wintomon(Window w) {
 	return selmon;
 }
 
-/* There's no way to check accesses to destroyed windows, thus those cases are
- * ignored (especially on UnmapNotify's). Other types of errors call Xlibs
- * default error handler, which may call exit. */
 int xerror(Display* dpy, XErrorEvent* ee) {
-  /*!
+  /*! \brief Default error handler
+   *
+   * There's no way to check accesses to destroyed windows, thus those cases are
+   * ignored (especially on UnmapNotify's). Other types of errors call Xlibs
+   * default error handler, which may call exit.
   **/
 
 	if (ee->error_code == BadWindow
@@ -2186,10 +2190,9 @@ int xerrordummy(Display* dpy, XErrorEvent* ee) {
 	return 0;
 }
 
-/* Startup Error handler to check if another window manager
- * is already running. */
 int xerrorstart(Display* dpy, XErrorEvent* ee) {
-  /*!
+  /*! Startup Error handler to check if another window manager
+   * is already running.
   **/
 
 	die("dwm: another window manager is already running");
@@ -2212,23 +2215,19 @@ void zoom(const Arg* arg) {
 }
 
 int main(int argc, char* argv[]) {
-  /*!
+  /*! \brief Entry point
   **/
 
 	if (argc == 2 && !strcmp("-v", argv[1]))
-		die("dwm-"VERSION);
+		die("dwm-"VERSION); //print version and exit
 	else if (argc != 1)
-		die("usage: dwm [-v]");
-	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
+		die("usage: dwm [-v]"); //print usage and exit
+	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale()) //try to set character locale according to environment variables
 		fputs("warning: no locale support\n", stderr);
-	if (!(dpy = XOpenDisplay(NULL)))
+	if (!(dpy = XOpenDisplay(NULL))) //try to open display from name set in DISPLAY environment variable
 		die("dwm: cannot open display");
 	checkotherwm();
 	setup();
-#ifdef __OpenBSD__
-	if (pledge("stdio rpath proc exec", NULL) == -1)
-		die("pledge");
-#endif /* __OpenBSD__ */
 	scan();
 	run();
 	cleanup();
