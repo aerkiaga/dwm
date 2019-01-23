@@ -1,5 +1,5 @@
-/*** @file */
-/* See LICENSE file for copyright and license details. */
+/*! \file util.c
+ * See LICENSE file for copyright and license details. */
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>

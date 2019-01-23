@@ -1,5 +1,5 @@
-/** @file */
-/* See LICENSE file for copyright and license details. */
+/* \file config.def.h
+ * See LICENSE file for copyright and license details. */
 
 /* appearance */
 static const unsigned int borderpx  = 1;        /* border pixel of windows */

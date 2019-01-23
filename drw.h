@@ -1,5 +1,5 @@
-/** @file */
-/* See LICENSE file for copyright and license details. */
+/*! \file drw.h
+ * See LICENSE file for copyright and license details. */
 
 typedef struct {
 	Cursor cursor;

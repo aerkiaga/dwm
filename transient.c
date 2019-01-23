@@ -1,5 +1,5 @@
-/*** @file */
-/* cc transient.c -o transient -lX11 */
+/*! \file transient.c
+ * cc transient.c -o transient -lX11 */
 
 #include <stdlib.h>
 #include <unistd.h>
