@@ -252,7 +252,14 @@ void drw_setscheme(Drw* drw, Clr* scm) {
 }
 
 void drw_rect(Drw* drw, int x, int y, unsigned int w, unsigned int h, int filled, int invert) {
-	/*!
+	/*! \brief Draw a rectangle.
+	 * \param drw [in] Drawing context.
+	 * \param x [in] X coordinate of the top-left corner.
+	 * \param y [in] Y coordinate of the top-left corner.
+	 * \param w [in] Rectangle width.
+	 * \param h [in] Rectangle height.
+	 * \param filled [in] Whether or not the rectangle should be filled.
+	 * \param invert [in] Invert foreground and background colors.
   **/
 
 	if (!drw || !drw->scheme)
@@ -269,7 +276,7 @@ int drw_text(Drw* drw, int x, int y, unsigned int w, unsigned int h, unsigned in
 	 * \param drw [in] Drawing context.
 	 * \param x [in] X coordinate of the top-left corner.
 	 * \param y [in] Y coordinate of the top-left corner.
-	 * \param w [in] Desired width of the text.
+	 * \param w [in] Desired width of the text. Width of enclosing rectangle and maximum width of text.
 	 * \param h [in] Height of the rectangle where the text will be vertically centered.
 	 * \param lpad [in] Left padding.
 	 * \param text [in] UTF-8 encoded string of text to be drawn.
@@ -405,7 +412,12 @@ int drw_text(Drw* drw, int x, int y, unsigned int w, unsigned int h, unsigned in
 }
 
 void drw_map(Drw* drw, Window win, int x, int y, unsigned int w, unsigned int h) {
-	/*!
+	/*! \brief Map the specified drawing context area to a window.
+	 * \param drw [in] Drawing context.
+	 * \param x [in] X coordinate of the top-left corner of the area that will be mapped.
+	 * \param y [in] Y coordinate of the top-left corner of the area that will be mapped.
+	 * \param w [in] Width of the area that will be mapped.
+	 * \param h [in] Height of the area that will be mapped.
   **/
 
 	if (!drw)

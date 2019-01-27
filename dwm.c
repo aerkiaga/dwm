@@ -47,7 +47,7 @@
 
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
-#define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
+#define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask)) // remove lock bits and only leave modifier keys
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
                                * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy))) // Area of the intersection between a rectangle and a monitor
 #define ISVISIBLE(C)            ((C->tags & C->mon->tagset[C->mon->seltags]))
@@ -240,7 +240,8 @@ static const char broken[] = "broken";
 static char stext[256]; //!< Status text
 static int screen;
 static int sw, sh;           //!< X display screen geometry width, height
-static int bh, blw = 0;      //!< Bar geometry
+static int bh;               //!< Bar height
+static int blw = 0;          //!< Bar layout symbol width
 static int lrpad;            //!< Sum of left and right padding for text
 static int (*xerrorxlib)(Display*, XErrorEvent*);
 static unsigned int numlockmask = 0;
@@ -266,8 +267,10 @@ static Cur* cursor[CurLast];
 static Clr** scheme; //!< Loaded color scheme
 static Display* dpy;
 static Drw* drw;
-static Monitor* mons, *selmon;
-static Window root, wmcheckwin;
+static Monitor* mons; //!< Linked list of all distinct monitors
+static Monitor* selmon; //!< Currently selected monitor
+static Window root; //!< Root window
+static Window wmcheckwin; //!< Dummy window to identify as a compliant WM
 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
@@ -438,29 +441,31 @@ void buttonpress(XEvent* e) {
 		focus(NULL);
 	}
 	if (ev->window == selmon->barwin) { //if clicked on the bar window
+    /* | 1 | 2 | 3 | 4 | 5 |    []=    | title of the current window |    status   |
+        ------ClkTagBar---- ClkLtSymbol ---------ClkWinTitle--------- ClkStatusText */
 		i = x = 0;
 		do
 			x += TEXTW(tags[i]);
-		while (ev->x >= x && ++i < LENGTH(tags));
-		if (i < LENGTH(tags)) {
+		while (ev->x >= x && ++i < LENGTH(tags)); //find possible tag being clicked
+		if (i < LENGTH(tags)) { //clicked on a tag?
 			click = ClkTagBar;
-			arg.ui = 1 << i;
-		} else if (ev->x < x + blw)
+			arg.ui = 1 << i; //set argument bit with same index as tag
+		} else if (ev->x < x + blw) //clicked on layout symbol?
 			click = ClkLtSymbol;
-		else if (ev->x > selmon->ww - TEXTW(stext))
+		else if (ev->x > selmon->ww - TEXTW(stext)) //clicked on status?
 			click = ClkStatusText;
-		else
+		else //clicked on window title
 			click = ClkWinTitle;
-	} else if ((c = wintoclient(ev->window))) {
+	} else if ((c = wintoclient(ev->window))) { //clicked on a client window
 		focus(c);
 		restack(selmon);
-		XAllowEvents(dpy, ReplayPointer, CurrentTime);
+		XAllowEvents(dpy, ReplayPointer, CurrentTime); //pass the click event to the client
 		click = ClkClientWin;
 	}
-	for (i = 0; i < LENGTH(buttons); i++)
+	for (i = 0; i < LENGTH(buttons); i++) //execute all appropriate button callbacks
 		if (click == buttons[i].click && buttons[i].func && buttons[i].button == ev->button
 		&& CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state))
-			buttons[i].func(click == ClkTagBar && buttons[i].arg.i == 0 ? &arg : &buttons[i].arg);
+			buttons[i].func(click == ClkTagBar && buttons[i].arg.i == 0 ? &arg : &buttons[i].arg); //pass defined arg, or default one for ClkTagBar if none defined
 }
 
 void checkotherwm(void) {
@@ -714,12 +719,12 @@ Monitor* dirtomon(int dir)
 }
 
 void drawbar(Monitor* m) {
-  /*!
+  /*! \brief Draw bar window for the specified monitor.
   **/
 
 	int x, w, sw = 0;
-	int boxs = drw->fonts->h / 9;
-	int boxw = drw->fonts->h / 6 + 2;
+	int boxs = drw->fonts->h / 9; //X and Y position of the small box
+	int boxw = drw->fonts->h / 6 + 2; //width and height of the small box
 	unsigned int i, occ = 0, urg = 0;
 	Client* c;
 
@@ -730,38 +735,42 @@ void drawbar(Monitor* m) {
 		drw_text(drw, m->ww - sw, 0, sw, bh, 0, stext, 0);
 	}
 
-	for (c = m->clients; c; c = c->next) {
-		occ |= c->tags;
+  /* draw tags */
+	for (c = m->clients; c; c = c->next) { //for all clients in this monitor
+		occ |= c->tags; //add all tags that the client has
 		if (c->isurgent)
-			urg |= c->tags;
+			urg |= c->tags; //add all tags that the urgent client has
 	}
 	x = 0;
-	for (i = 0; i < LENGTH(tags); i++) {
+	for (i = 0; i < LENGTH(tags); i++) { //for every tag
 		w = TEXTW(tags[i]);
-		drw_setscheme(drw, scheme[m->tagset[m->seltags] & 1 << i ? SchemeSel : SchemeNorm]);
-		drw_text(drw, x, 0, w, bh, lrpad / 2, tags[i], urg & 1 << i);
-		if (occ & 1 << i)
+		drw_setscheme(drw, scheme[m->tagset[m->seltags] & 1 << i ? SchemeSel : SchemeNorm]); //set scheme depending on ehether tag is in selected tag list
+		drw_text(drw, x, 0, w, bh, lrpad / 2, tags[i], urg & 1 << i); //draw tag text, invert colors if urgent
+		if (occ & 1 << i) //if there is a window with such tag
 			drw_rect(drw, x + boxs, boxs, boxw, boxw,
 				m == selmon && selmon->sel && selmon->sel->tags & 1 << i,
-				urg & 1 << i);
+				urg & 1 << i); //draw a small box, filled if the selected window has the tag, inverted if urgent
 		x += w;
 	}
-	w = blw = TEXTW(m->ltsymbol);
+
+  /* draw layout symbol */
+	w = blw = TEXTW(m->ltsymbol); //set bar layout symbol width to width of current layout symbol
 	drw_setscheme(drw, scheme[SchemeNorm]);
 	x = drw_text(drw, x, 0, w, bh, lrpad / 2, m->ltsymbol, 0);
 
-	if ((w = m->ww - sw - x) > bh) {
-		if (m->sel) {
-			drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]);
+	if ((w = m->ww - sw - x) > bh) { //if remaining space > bar height
+    /* draw window title */
+		if (m->sel) { //window title of the selected window
+			drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]); //scheme indicates if monitor is selected
 			drw_text(drw, x, 0, w, bh, lrpad / 2, m->sel->name, 0);
 			if (m->sel->isfloating)
-				drw_rect(drw, x + boxs, boxs, boxw, boxw, m->sel->isfixed, 0);
-		} else {
+				drw_rect(drw, x + boxs, boxs, boxw, boxw, m->sel->isfixed, 0); //draw small box if window is floating, fill it if fixed
+		} else { //no title
 			drw_setscheme(drw, scheme[SchemeNorm]);
 			drw_rect(drw, x, 0, w, bh, 1, 1);
 		}
 	}
-	drw_map(drw, m->barwin, 0, 0, m->ww, bh);
+	drw_map(drw, m->barwin, 0, 0, m->ww, bh); //map to actual window
 }
 
 void drawbars(void) {
@@ -1408,7 +1417,12 @@ void resizemouse(const Arg* arg) {
 }
 
 void restack(Monitor* m) {
-  /*!
+  /*! \brief Updates a monitor's X stack according to the stack and layout data it contains.
+   *
+   * Floating windows will be placed on top of all other windows, followed by
+   * the bar window, and finally all the other client windows in the order they
+   * appear in Monitor::stack. If the selected layout of the monitor is
+   * floating, however, all windows will be floating.
   **/
 
 	Client* c;
@@ -1416,21 +1430,21 @@ void restack(Monitor* m) {
 	XWindowChanges wc;
 
 	drawbar(m);
-	if (!m->sel)
+	if (!m->sel) //no client window selected, nothing to do
 		return;
-	if (m->sel->isfloating || !m->lt[m->sellt]->arrange)
-		XRaiseWindow(dpy, m->sel->win);
-	if (m->lt[m->sellt]->arrange) {
-		wc.stack_mode = Below;
-		wc.sibling = m->barwin;
+	if (m->sel->isfloating || !m->lt[m->sellt]->arrange) //if selected window or whole monitor layout is floating
+		XRaiseWindow(dpy, m->sel->win); //raise to top of the X stack
+	if (m->lt[m->sellt]->arrange) { //monitor has a selected layout (non-floating)
+		wc.stack_mode = Below;  // place first window below...
+		wc.sibling = m->barwin; //...the bar window in the X stack
 		for (c = m->stack; c; c = c->snext)
-			if (!c->isfloating && ISVISIBLE(c)) {
-				XConfigureWindow(dpy, c->win, CWSibling|CWStackMode, &wc);
-				wc.sibling = c->win;
+			if (!c->isfloating && ISVISIBLE(c)) { //for all non-floating windows in monitor
+				XConfigureWindow(dpy, c->win, CWSibling|CWStackMode, &wc); //apply settings created before
+				wc.sibling = c->win; //place next window below the current one in the X stack
 			}
 	}
 	XSync(dpy, False);
-	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
+	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev)); //remove al pending EnterNotify events, as they were created in an outdated layout
 }
 
 void run(void) {
