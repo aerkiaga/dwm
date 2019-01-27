@@ -8,7 +8,7 @@
 #include "util.h"
 
 void* ecalloc(size_t nmemb, size_t size) {
-	/*! \brief Wrapper around calloc() that shows error message
+	/*! \brief Wrapper around calloc() that shows error message.
   **/
 
 	void* p;
@@ -19,7 +19,7 @@ void* ecalloc(size_t nmemb, size_t size) {
 }
 
 void die(const char* fmt, ...) {
-	/*! \brief Show error message and abort
+	/*! \brief Show error message and abort.
   **/
 
 	va_list ap;

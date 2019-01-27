@@ -49,14 +49,14 @@
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
 #define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
-                               * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
+                               * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy))) // Area of the intersection between a rectangle and a monitor
 #define ISVISIBLE(C)            ((C->tags & C->mon->tagset[C->mon->seltags]))
-#define LENGTH(X)               (sizeof X / sizeof X[0]) //!< Number of elements in a static array
+#define LENGTH(X)               (sizeof X / sizeof X[0]) // Number of elements in a static array
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
-#define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
+#define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad) // Text width (including padding)
 
 /* enums */
 enum { CurNormal, CurResize, CurMove, CurLast }; //!< cursor
@@ -237,11 +237,11 @@ static void zoom(const Arg* arg);
 
 /* variables */
 static const char broken[] = "broken";
-static char stext[256];
+static char stext[256]; //!< Status text
 static int screen;
 static int sw, sh;           //!< X display screen geometry width, height
-static int bh, blw = 0;      //!< bar geometry
-static int lrpad;            //!< sum of left and right padding for text
+static int bh, blw = 0;      //!< Bar geometry
+static int lrpad;            //!< Sum of left and right padding for text
 static int (*xerrorxlib)(Display*, XErrorEvent*);
 static unsigned int numlockmask = 0;
 static void (*handler[LASTEvent]) (XEvent*) = {
@@ -413,7 +413,7 @@ void attach(Client* c) {
 }
 
 void attachstack(Client* c) {
-  /*!
+  /*! \brief Place client on top of stack.
   **/
 
 	c->snext = c->mon->stack;
@@ -421,7 +421,7 @@ void attachstack(Client* c) {
 }
 
 void buttonpress(XEvent* e) {
-  /*!
+  /*! \brief Handler for ButtonPress events.
   **/
 
 	unsigned int i, x, click;
@@ -432,12 +432,12 @@ void buttonpress(XEvent* e) {
 
 	click = ClkRootWin;
 	/* focus monitor if necessary */
-	if ((m = wintomon(ev->window)) && m != selmon) {
-		unfocus(selmon->sel, 1);
+	if ((m = wintomon(ev->window)) && m != selmon) { //if clicked on a non-selected monitor
+		unfocus(selmon->sel, 1); //unfocus selected window and make inactive
 		selmon = m;
 		focus(NULL);
 	}
-	if (ev->window == selmon->barwin) {
+	if (ev->window == selmon->barwin) { //if clicked on the bar window
 		i = x = 0;
 		do
 			x += TEXTW(tags[i]);
@@ -464,7 +464,7 @@ void buttonpress(XEvent* e) {
 }
 
 void checkotherwm(void) {
-  /*! \brief Check if another WM is running
+  /*! \brief Check if another WM is running.
    *
    * Also sets xerror() as error handler.
   **/
@@ -644,7 +644,7 @@ void configurerequest(XEvent* e) {
 }
 
 Monitor* createmon(void) {
-  /*! \brief Create monitor from global parameters
+  /*! \brief Create monitor from global parameters.
   **/
 
 	Monitor* m;
@@ -683,17 +683,19 @@ void detach(Client* c) {
 }
 
 void detachstack(Client* c) {
-  /*!
+  /*! \brief Detack client from stack.
+   *
+   * If client is selected, select next client in stack.
   **/
 
 	Client** tc, *t;
 
-	for (tc = &c->mon->stack; *tc && *tc != c; tc = &(*tc)->snext);
-	*tc = c->snext;
+	for (tc = &c->mon->stack; *tc && *tc != c; tc = &(*tc)->snext); //find element before c in stack
+	*tc = c->snext; //link it to next, skipping c
 
-	if (c == c->mon->sel) {
-		for (t = c->mon->stack; t && !ISVISIBLE(t); t = t->snext);
-		c->mon->sel = t;
+	if (c == c->mon->sel) { //if c is selected
+		for (t = c->mon->stack; t && !ISVISIBLE(t); t = t->snext); //find next visible element
+		c->mon->sel = t; //select it
 	}
 }
 
@@ -763,7 +765,7 @@ void drawbar(Monitor* m) {
 }
 
 void drawbars(void) {
-  /*!
+  /*! \brief Call drawbar() for every monitor.
   **/
 
 	Monitor* m;
@@ -804,24 +806,24 @@ void expose(XEvent* e) {
 }
 
 void focus(Client* c) {
-  /*!
+  /*! \brief Focus a particular client's window, or no window.
   **/
 
 	if (!c || !ISVISIBLE(c))
 		for (c = selmon->stack; c && !ISVISIBLE(c); c = c->snext);
-	if (selmon->sel && selmon->sel != c)
+	if (selmon->sel && selmon->sel != c) //if another client is focused
 		unfocus(selmon->sel, 0);
 	if (c) {
-		if (c->mon != selmon)
+		if (c->mon != selmon) //focus on different monitor
 			selmon = c->mon;
 		if (c->isurgent)
-			seturgent(c, 0);
+			seturgent(c, 0); //make it not urgent
 		detachstack(c);
-		attachstack(c);
-		grabbuttons(c, 1);
-		XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel);
+		attachstack(c); //re-attach on top
+		grabbuttons(c, 1); //only grab special mouse actions from focused window
+		XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel); //set focused window border
 		setfocus(c);
-	} else {
+	} else { //no active window
 		XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
 		XDeleteProperty(dpy, root, netatom[NetActiveWindow]);
 	}
@@ -900,7 +902,8 @@ Atom getatomprop(Client* c, Atom prop) {
 }
 
 int getrootptr(int* x, int* y) {
-  /*!
+  /*! \brief Get pointer coordinates relative to root window.
+   * \return True if pointer is on same screen as root, False otherwise.
   **/
 
 	int di;
@@ -930,7 +933,11 @@ long getstate(Window w) {
 }
 
 int gettextprop(Window w, Atom atom, char* text, unsigned int size) {
-  /*!
+  /*! \brief Get window property as text.
+   * \param w [in] Window to get property from
+   * \param atom [in] Atom representing property to obtain
+   * \param text [out] Buffer to hold obtained property
+   * \param size [in] Size of the buffer that will hold the string
   **/
 
 	char** list = NULL;
@@ -940,45 +947,47 @@ int gettextprop(Window w, Atom atom, char* text, unsigned int size) {
 	if (!text || size == 0)
 		return 0;
 	text[0] = '\0';
-	if (!XGetTextProperty(dpy, w, &name, atom) || !name.nitems)
+	if (!XGetTextProperty(dpy, w, &name, atom) || !name.nitems) //try to get window property from atom
 		return 0;
-	if (name.encoding == XA_STRING)
+	if (name.encoding == XA_STRING) //if returned data is a string
 		strncpy(text, (char*)name.value, size - 1);
 	else {
-		if (XmbTextPropertyToTextList(dpy, &name, &list, &n) >= Success && n > 0 && *list) {
-			strncpy(text, *list, size - 1);
+		if (XmbTextPropertyToTextList(dpy, &name, &list, &n) >= Success && n > 0 && *list) { //try to convert property into a list of string
+			strncpy(text, *list, size - 1); //use first element
 			XFreeStringList(list);
 		}
 	}
 	text[size - 1] = '\0';
-	XFree(name.value);
+	XFree(name.value); //free original string
 	return 1;
 }
 
 void grabbuttons(Client* c, int focused) {
-  /*!
+  /*! \brief Grab button combinations specified by #buttons on client's window.
+   *
+   * Only combinations with #ClkClientWin are grabbed in a focused window.
   **/
 
 	updatenumlockmask();
 	{
 		unsigned int i, j;
 		unsigned int modifiers[] = { 0, LockMask, numlockmask, numlockmask|LockMask };
-		XUngrabButton(dpy, AnyButton, AnyModifier, c->win);
-		if (!focused)
+		XUngrabButton(dpy, AnyButton, AnyModifier, c->win); //ungrab all buttons for client's window
+		if (!focused) //if window is not focused, grab all buttons away from it
 			XGrabButton(dpy, AnyButton, AnyModifier, c->win, False,
 				BUTTONMASK, GrabModeSync, GrabModeSync, None, None);
-		for (i = 0; i < LENGTH(buttons); i++)
-			if (buttons[i].click == ClkClientWin)
-				for (j = 0; j < LENGTH(modifiers); j++)
+		for (i = 0; i < LENGTH(buttons); i++) //for each button combination in list of mouse actions
+			if (buttons[i].click == ClkClientWin) //those which go with client windows
+				for (j = 0; j < LENGTH(modifiers); j++) //for each lock combination
 					XGrabButton(dpy, buttons[i].button,
 						buttons[i].mask | modifiers[j],
 						c->win, False, BUTTONMASK,
-						GrabModeAsync, GrabModeSync, None, None);
+						GrabModeAsync, GrabModeSync, None, None); //passively grab button combination ignoring locks
 	}
 }
 
 void grabkeys(void) {
-  /*!
+  /*! \brief Grab key combinations specified in #keys.
   **/
 
 	updatenumlockmask();
@@ -987,12 +996,12 @@ void grabkeys(void) {
 		unsigned int modifiers[] = { 0, LockMask, numlockmask, numlockmask|LockMask };
 		KeyCode code;
 
-		XUngrabKey(dpy, AnyKey, AnyModifier, root);
-		for (i = 0; i < LENGTH(keys); i++)
-			if ((code = XKeysymToKeycode(dpy, keys[i].keysym)))
-				for (j = 0; j < LENGTH(modifiers); j++)
+		XUngrabKey(dpy, AnyKey, AnyModifier, root); //ungrab all keys
+		for (i = 0; i < LENGTH(keys); i++) //for each key combination in list of keyboard shorcuts
+			if ((code = XKeysymToKeycode(dpy, keys[i].keysym))) //get keycode
+				for (j = 0; j < LENGTH(modifiers); j++) //for each lock combination
 					XGrabKey(dpy, code, keys[i].mod | modifiers[j], root,
-						True, GrabModeAsync, GrabModeAsync);
+						True, GrabModeAsync, GrabModeAsync); //passively grab key combination ignoring locks
 	}
 }
 
@@ -1005,9 +1014,13 @@ void incnmaster(const Arg* arg) {
 }
 
 #ifdef XINERAMA
-static int
-isuniquegeom(XineramaScreenInfo* unique, size_t n, XineramaScreenInfo* info)
-{
+static int isuniquegeom(XineramaScreenInfo* unique, size_t n, XineramaScreenInfo* info) {
+  /*! \brief Check if Xinerama screen is unique geometry.
+   * \param unique [in] List of unique geometry screens to check against
+   * \param n [in] Number of screens in *unique*
+   * \param info [in] Screen to check
+  **/
+
 	while (n--)
 		if (unique[n].x_org == info->x_org && unique[n].y_org == info->y_org
 		&& unique[n].width == info->width && unique[n].height == info->height)
@@ -1296,14 +1309,16 @@ void quit(const Arg* arg) {
 }
 
 Monitor* recttomon(int x, int y, int w, int h) {
-  /*!
+  /*! \brief Get monitor that overlaps the most with a given rectangle.
+   *
+   * If no monitor overlaps with the rectangle, the currently selected monitor is returned.
   **/
 
 	Monitor* m, *r = selmon;
 	int a, area = 0;
 
-	for (m = mons; m; m = m->next)
-		if ((a = INTERSECT(x, y, w, h, m)) > area) {
+	for (m = mons; m; m = m->next) //for every monitor
+		if ((a = INTERSECT(x, y, w, h, m)) > area) { //if the rectangle intersects more area of this monitor
 			area = a;
 			r = m;
 		}
@@ -1419,13 +1434,13 @@ void restack(Monitor* m) {
 }
 
 void run(void) {
-  /*! \brief Main program loop
+  /*! \brief Main program loop.
   **/
 
 	XEvent ev;
 	/* main event loop */
-	XSync(dpy, False);
-	while (running && !XNextEvent(dpy, &ev))
+	XSync(dpy, False); //flush X server
+	while (running && !XNextEvent(dpy, &ev)) //wait for event
 		if (handler[ev.type])
 			handler[ev.type](&ev); /* call handler */
 }
@@ -1486,7 +1501,9 @@ void setclientstate(Client* c, long state) {
 }
 
 int sendevent(Client* c, Atom proto) {
-  /*!
+  /*! \brief Send event to client with a protocol.
+   *
+   * The event will only be sent if the client's window accepts *proto*.
   **/
 
 	int n;
@@ -1494,12 +1511,12 @@ int sendevent(Client* c, Atom proto) {
 	int exists = 0;
 	XEvent ev;
 
-	if (XGetWMProtocols(dpy, c->win, &protocols, &n)) {
-		while (!exists && n--)
+	if (XGetWMProtocols(dpy, c->win, &protocols, &n)) { //get list of protocols that the window will accept
+		while (!exists && n--) //search for proto in list
 			exists = protocols[n] == proto;
 		XFree(protocols);
 	}
-	if (exists) {
+	if (exists) { //if window accepts proto
 		ev.type = ClientMessage;
 		ev.xclient.window = c->win;
 		ev.xclient.message_type = wmatom[WMProtocols];
@@ -1512,16 +1529,16 @@ int sendevent(Client* c, Atom proto) {
 }
 
 void setfocus(Client* c) {
-  /*!
+  /*! \brief Give input focus to a client and make its window the active window.
   **/
 
-	if (!c->neverfocus) {
-		XSetInputFocus(dpy, c->win, RevertToPointerRoot, CurrentTime);
+	if (!c->neverfocus) { //can be focused?
+		XSetInputFocus(dpy, c->win, RevertToPointerRoot, CurrentTime); //set input focus, revert to root if it becomes not viewable
 		XChangeProperty(dpy, root, netatom[NetActiveWindow],
 			XA_WINDOW, 32, PropModeReplace,
 			(unsigned char*) &(c->win), 1);
 	}
-	sendevent(c, wmatom[WMTakeFocus]);
+	sendevent(c, wmatom[WMTakeFocus]); //notify the window
 }
 
 void setfullscreen(Client* c, int fullscreen) {
@@ -1585,7 +1602,7 @@ void setmfact(const Arg* arg) {
 }
 
 void setup(void) {
-  /*! \brief Initialization routine
+  /*! \brief Initialization routine.
   **/
 
 	int i;
@@ -1624,7 +1641,7 @@ void setup(void) {
 	/* init cursors */
 	cursor[CurNormal] = drw_cur_create(drw, XC_left_ptr); //standard arrow cursor
 	cursor[CurResize] = drw_cur_create(drw, XC_sizing); //resizing cursor
-	cursor[CurMove] = drw_cur_create(drw, XC_fleur); //four crossed arrows
+	cursor[CurMove] = drw_cur_create(drw, XC_fleur); //moving cursor
 	/* init appearance */
 	scheme = ecalloc(LENGTH(colors), sizeof(Clr*));
 	for (i = 0; i < LENGTH(colors); i++) //for each scheme in scheme list
@@ -1632,41 +1649,41 @@ void setup(void) {
 	/* init bars */
 	updatebars();
 	updatestatus();
-	/* supporting window for NetWMCheck */
-	wmcheckwin = XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, 0, 0);
+	/* supporting window for NetWMCheck, to indicate that a compliant WM is active */
+	wmcheckwin = XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, 0, 0); //create dummy 1-pixel window
 	XChangeProperty(dpy, wmcheckwin, netatom[NetWMCheck], XA_WINDOW, 32,
-		PropModeReplace, (unsigned char*) &wmcheckwin, 1);
+		PropModeReplace, (unsigned char*) &wmcheckwin, 1); //set _NET_SUPPORTING_WM_CHECK property of child to itself
 	XChangeProperty(dpy, wmcheckwin, netatom[NetWMName], utf8string, 8,
-		PropModeReplace, (unsigned char*) "dwm", 3);
+		PropModeReplace, (unsigned char*) "dwm", 3); //set _NET_WM_NAME property of child to name of window manager
 	XChangeProperty(dpy, root, netatom[NetWMCheck], XA_WINDOW, 32,
-		PropModeReplace, (unsigned char*) &wmcheckwin, 1);
-	/* EWMH support per view */
+		PropModeReplace, (unsigned char*) &wmcheckwin, 1); //set _NET_SUPPORTING_WM_CHECK property of root to child
+	/* EWMH (Extended Window Manager Hints) support per view */
 	XChangeProperty(dpy, root, netatom[NetSupported], XA_ATOM, 32,
-		PropModeReplace, (unsigned char*) netatom, NetLast);
-	XDeleteProperty(dpy, root, netatom[NetClientList]);
+		PropModeReplace, (unsigned char*) netatom, NetLast); //set _NET_SUPPORTED property of root to list of EWMH atoms it supports
+	XDeleteProperty(dpy, root, netatom[NetClientList]); //empty list of managed X windows
 	/* select events */
-	wa.cursor = cursor[CurNormal]->cursor;
-	wa.event_mask = SubstructureRedirectMask|SubstructureNotifyMask
-		|ButtonPressMask|PointerMotionMask|EnterWindowMask
-		|LeaveWindowMask|StructureNotifyMask|PropertyChangeMask;
-	XChangeWindowAttributes(dpy, root, CWEventMask|CWCursor, &wa);
-	XSelectInput(dpy, root, wa.event_mask);
+	wa.cursor = cursor[CurNormal]->cursor; //set normal cursor for root
+	wa.event_mask = SubstructureRedirectMask|SubstructureNotifyMask //get events related to child window creation, destruction, resizing, mapping...
+		|ButtonPressMask|PointerMotionMask|EnterWindowMask //get events for button presses and pointer movement
+		|LeaveWindowMask|StructureNotifyMask|PropertyChangeMask; //get events related to window creation, destruction, resizing, mapping... as well as property changes
+	XChangeWindowAttributes(dpy, root, CWEventMask|CWCursor, &wa); //set root window's cursor and attributes
+	XSelectInput(dpy, root, wa.event_mask); //receive events that are accepted by root window
 	grabkeys();
 	focus(NULL);
 }
 
 
 void seturgent(Client* c, int urg) {
-  /*!
+  /*! \brief Set urgent status for client.
   **/
 
 	XWMHints* wmh;
 
 	c->isurgent = urg;
-	if (!(wmh = XGetWMHints(dpy, c->win)))
+	if (!(wmh = XGetWMHints(dpy, c->win))) //try to get WM hints for the specified client's window
 		return;
-	wmh->flags = urg ? (wmh->flags | XUrgencyHint) : (wmh->flags & ~XUrgencyHint);
-	XSetWMHints(dpy, c->win, wmh);
+	wmh->flags = urg ? (wmh->flags | XUrgencyHint) : (wmh->flags & ~XUrgencyHint); //set/unset XUrgencyHint flag
+	XSetWMHints(dpy, c->win, wmh); //update WM hints
 	XFree(wmh);
 }
 
@@ -1817,13 +1834,15 @@ void toggleview(const Arg* arg) {
 }
 
 void unfocus(Client* c, int setfocus) {
-  /*!
+  /*! \brief Unfocus a given client's window.
+   * \param c [in] The client which window is to be unfocused.
+   * \param setfocus [in] If True, the client window becomes inactive and loses input focus.
   **/
 
 	if (!c)
 		return;
-	grabbuttons(c, 0);
-	XSetWindowBorder(dpy, c->win, scheme[SchemeNorm][ColBorder].pixel);
+	grabbuttons(c, 0); //grab all button presses away from unfocused window
+	XSetWindowBorder(dpy, c->win, scheme[SchemeNorm][ColBorder].pixel); //set unfocused window border
 	if (setfocus) {
 		XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
 		XDeleteProperty(dpy, root, netatom[NetActiveWindow]);
@@ -1872,7 +1891,7 @@ void unmapnotify(XEvent* e) {
 }
 
 void updatebars(void) {
-  /*!
+  /*! \brief Create a bar for every monitor that doesn't have one.
   **/
 
 	Monitor* m;
@@ -1882,20 +1901,20 @@ void updatebars(void) {
 		.event_mask = ButtonPressMask|ExposureMask //get button presses and exposed invalid areas
 	};
 	XClassHint ch = {"dwm", "dwm"}; //application name and class
-	for (m = mons; m; m = m->next) {
-		if (m->barwin)
+	for (m = mons; m; m = m->next) { //make sure every monitor has a bar
+		if (m->barwin) //skip already-existing bars
 			continue;
-		m->barwin = XCreateWindow(dpy, root, m->wx, m->by, m->ww, bh, 0, DefaultDepth(dpy, screen),
-				CopyFromParent, DefaultVisual(dpy, screen),
-				CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa);
-		XDefineCursor(dpy, m->barwin, cursor[CurNormal]->cursor);
-		XMapRaised(dpy, m->barwin);
-		XSetClassHint(dpy, m->barwin, &ch);
+		m->barwin = XCreateWindow(dpy, root, m->wx, m->by, m->ww, bh, /*border_width:*/ 0, DefaultDepth(dpy, screen),
+				/*class:*/ CopyFromParent, DefaultVisual(dpy, screen),
+				CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa); //apply attributes defined before
+		XDefineCursor(dpy, m->barwin, cursor[CurNormal]->cursor); //set normal cursor for bar window
+		XMapRaised(dpy, m->barwin); //map bar and raise to top of stack
+		XSetClassHint(dpy, m->barwin, &ch); //set name and class defined before
 	}
 }
 
 void updatebarpos(Monitor* m) {
-  /*! \brief Update bar position to show/hide on top/bottom
+  /*! \brief Update bar position to show/hide on top/bottom.
   **/
 
 	m->wy = m->my;
@@ -1924,7 +1943,9 @@ void updateclientlist() {
 }
 
 int updategeom(void) {
-  /*!
+  /*! \brief Update monitor geometry.
+   *
+   * Also initializes monitor(s) if not already done.
   **/
 
 	int dirty = 0;
@@ -1934,17 +1955,17 @@ int updategeom(void) {
 		int i, j, n, nn;
 		Client* c;
 		Monitor* m;
-		XineramaScreenInfo* info = XineramaQueryScreens(dpy, &nn);
+		XineramaScreenInfo* info = XineramaQueryScreens(dpy, &nn); //get number of output devices and info about each
 		XineramaScreenInfo* unique = NULL;
 
-		for (n = 0, m = mons; m; m = m->next, n++);
+		for (n = 0, m = mons; m; m = m->next, n++); //get number of monitors
 		/* only consider unique geometries as separate screens */
 		unique = ecalloc(nn, sizeof(XineramaScreenInfo));
-		for (i = 0, j = 0; i < nn; i++)
+		for (i = 0, j = 0; i < nn; i++) //copy unique geometries and leave others out
 			if (isuniquegeom(unique, j, &info[i]))
 				memcpy(&unique[j++], &info[i], sizeof(XineramaScreenInfo));
 		XFree(info);
-		nn = j;
+		nn = j; //new number of screens
 		if (n <= nn) { /* new monitors available */
 			for (i = 0; i < (nn - n); i++) {
 				for (m = mons; m && m->next; m = m->next);
@@ -1985,8 +2006,8 @@ int updategeom(void) {
 		free(unique);
 	} else
 #endif /* XINERAMA */
-	{ /* default monitor setup */
-		if (!mons)
+	{ /* default monitor setup (if no Xinerama or not active)*/
+		if (!mons) //if we haven't initialized our monitor yet
 			mons = createmon();
 		if (mons->mw != sw || mons->mh != sh) { //if monitor size != X display size
 			dirty = 1;
@@ -2003,18 +2024,18 @@ int updategeom(void) {
 }
 
 void updatenumlockmask(void) {
-  /*!
+  /*! \brief Set #numlockmask to the appropriate modifier mask for numlock.
   **/
 
 	unsigned int i, j;
 	XModifierKeymap* modmap;
 
 	numlockmask = 0;
-	modmap = XGetModifierMapping(dpy);
-	for (i = 0; i < 8; i++)
-		for (j = 0; j < modmap->max_keypermod; j++)
+	modmap = XGetModifierMapping(dpy); //get keys that are used as modifiers
+	for (i = 0; i < 8; i++) //for each modifier
+		for (j = 0; j < modmap->max_keypermod; j++) //for each key in modifier
 			if (modmap->modifiermap[i * modmap->max_keypermod + j]
-				== XKeysymToKeycode(dpy, XK_Num_Lock))
+				== XKeysymToKeycode(dpy, XK_Num_Lock)) //if we have found numlock modifier
 				numlockmask = (1 << i);
 	XFreeModifiermap(modmap);
 }
@@ -2064,11 +2085,11 @@ void updatesizehints(Client* c) {
 }
 
 void updatestatus(void) {
-  /*!
+  /*! \brief Update bar status text.
   **/
 
-	if (!gettextprop(root, XA_WM_NAME, stext, sizeof(stext)))
-		strcpy(stext, "dwm-"VERSION);
+	if (!gettextprop(root, XA_WM_NAME, stext, sizeof(stext))) //get name of root window into stext
+		strcpy(stext, "dwm-"VERSION); //fallback
 	drawbar(selmon);
 }
 
@@ -2129,39 +2150,41 @@ void view(const Arg* arg) {
 }
 
 Client* wintoclient(Window w) {
-  /*!
+  /*! \brief Get client associated with a window.
   **/
 
 	Client* c;
 	Monitor* m;
 
-	for (m = mons; m; m = m->next)
-		for (c = m->clients; c; c = c->next)
+	for (m = mons; m; m = m->next) //for every monitor
+		for (c = m->clients; c; c = c->next) //for every client in monitor
 			if (c->win == w)
 				return c;
 	return NULL;
 }
 
 Monitor* wintomon(Window w) {
-  /*!
+  /*! \brief Get monitor associated with a window.
+   *
+   * If no monitor can be found, the current selected monitor is returned.
   **/
 
-	int x, y;
+	int x, y; //pointer coordinates relative to root
 	Client* c;
 	Monitor* m;
 
 	if (w == root && getrootptr(&x, &y))
-		return recttomon(x, y, 1, 1);
+		return recttomon(x, y, 1, 1); //return monitor where the pointer is
 	for (m = mons; m; m = m->next)
-		if (w == m->barwin)
+		if (w == m->barwin) //bar window in a monitor
 			return m;
-	if ((c = wintoclient(w)))
+	if ((c = wintoclient(w))) //all other windows have clients
 		return c->mon;
-	return selmon;
+	return selmon; //fallback
 }
 
 int xerror(Display* dpy, XErrorEvent* ee) {
-  /*! \brief Default error handler
+  /*! \brief Default error handler.
    *
    * There's no way to check accesses to destroyed windows, thus those cases are
    * ignored (especially on UnmapNotify's). Other types of errors call Xlibs
@@ -2215,7 +2238,7 @@ void zoom(const Arg* arg) {
 }
 
 int main(int argc, char* argv[]) {
-  /*! \brief Entry point
+  /*! \brief Entry point.
   **/
 
 	if (argc == 2 && !strcmp("-v", argv[1]))
