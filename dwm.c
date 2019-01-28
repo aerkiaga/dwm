@@ -50,11 +50,11 @@
 #define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask)) // remove lock bits and only leave modifier keys
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
                                * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy))) // Area of the intersection between a rectangle and a monitor
-#define ISVISIBLE(C)            ((C->tags & C->mon->tagset[C->mon->seltags]))
+#define ISVISIBLE(C)            ((C->tags & C->mon->tagset[C->mon->seltags])) // Whether a particular client's window is visible
 #define LENGTH(X)               (sizeof X / sizeof X[0]) // Number of elements in a static array
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
-#define WIDTH(X)                ((X)->w + 2 * (X)->bw)
-#define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
+#define WIDTH(X)                ((X)->w + 2 * (X)->bw) // Width of a particular window, including border
+#define HEIGHT(X)               ((X)->h + 2 * (X)->bw) // Height of a particular window, including border
 #define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad) // Text width (including padding)
 
@@ -91,7 +91,8 @@ struct Client {
 	int x, y, w, h;
 	int oldx, oldy, oldw, oldh;
 	int basew, baseh, incw, inch, maxw, maxh, minw, minh;
-	int bw, oldbw;
+	int bw; //!< Border width
+  int oldbw; //!< Saved border width
 	unsigned int tags;
 	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen;
 	Client* next;
@@ -317,7 +318,21 @@ void applyrules(Client* c) {
 }
 
 int applysizehints(Client* c, int* x, int* y, int* w, int* h, int interact) {
-  /*!
+  /*! \brief Modifies a window's geometry to satisfy size hints provided by the client.
+   * \param c [in] The client which window is to be resized.
+   * \param x [in, out] X coordinate of the top-left corner of the window.
+   * \param y [in, out] Y coordinate of the top-left corner of the window.
+   * \param w [in, out] width of the window (not including border).
+   * \param h [in, out] height of the window (not including border).
+   * \param interact [in] Whether the window can be completely outside its monitor, yet inside the screen.
+   * \return Whether any of the final geometry parameters is different from the ones defined in the client.
+   *
+   * The process is as follows:
+   * 1. Make sure that width, height > 0.
+   * 2. If the window is completely outside its monitor, or the whole screen, put it inside.
+   * 3. Make sure that width, height >= #bh.
+   * 4. If the window is floating, or is tiled but #resizehints is set, shrink
+   * it to the largest size that fulfills the client's size requirements.
   **/
 
 	int baseismin;
@@ -326,7 +341,7 @@ int applysizehints(Client* c, int* x, int* y, int* w, int* h, int interact) {
 	/* set minimum possible */
 	*w = MAX(1, *w);
 	*h = MAX(1, *h);
-	if (interact) {
+	if (interact) { //if the window is completely outside the screen (may be outside its monitor), put it inside
 		if (*x > sw)
 			*x = sw - WIDTH(c);
 		if (*y > sh)
@@ -335,7 +350,7 @@ int applysizehints(Client* c, int* x, int* y, int* w, int* h, int interact) {
 			*x = 0;
 		if (*y + *h + 2 * c->bw < 0)
 			*y = 0;
-	} else {
+	} else { //if the window is completely outside its monitor, put it inside
 		if (*x >= m->wx + m->ww)
 			*x = m->wx + m->ww - WIDTH(c);
 		if (*y >= m->wy + m->wh)
@@ -345,12 +360,25 @@ int applysizehints(Client* c, int* x, int* y, int* w, int* h, int interact) {
 		if (*y + *h + 2 * c->bw <= m->wy)
 			*y = m->wy;
 	}
-	if (*h < bh)
+	if (*h < bh) //minimum window height is that of the bar window
 		*h = bh;
-	if (*w < bh)
+	if (*w < bh) //minimum window width is the height of the bar window
 		*w = bh;
-	if (resizehints || c->isfloating || !c->mon->lt[c->mon->sellt]->arrange) {
+	if (resizehints || c->isfloating || !c->mon->lt[c->mon->sellt]->arrange) { //if floating, or tiled but must respect size hints
 		/* see last two sentences in ICCCM 4.1.2.3 */
+    /* "If a base size is provided along with the aspect ratio fields, the base
+     * size should be subtracted from the window size prior to checking that the
+     * aspect ratio falls in range. If a base size is not provided, nothing
+     * should be subtracted from the window size. (The minimum size is not to be
+     * used in place of the base size for this purpose.)"
+     *
+     * Restrictions (according to ICCCM 4.1.2.3):
+     * *w == basew + (i * incw)
+     * *h == baseh + (j * inch)
+     * minw <= *w <= maxw
+     * minh <= *h <= maxh
+     * mina <= (*w - basew) / (*h - baseh) <= maxa (see the sentences above)
+     */
 		baseismin = c->basew == c->minw && c->baseh == c->minh;
 		if (!baseismin) { /* temporarily remove base dimensions */
 			*w -= c->basew;
@@ -358,10 +386,10 @@ int applysizehints(Client* c, int* x, int* y, int* w, int* h, int interact) {
 		}
 		/* adjust for aspect limits */
 		if (c->mina > 0 && c->maxa > 0) {
-			if (c->maxa < (float)*w / *h)
-				*w = *h * c->maxa + 0.5;
-			else if (c->mina < (float)*h / *w)
-				*h = *w * c->mina + 0.5;
+			if (c->maxa < (float)*w / *h) //too long
+				*w = *h * c->maxa + 0.5; //shrink it, rounding up
+			else if (c->mina < (float)*h / *w) //too tall
+				*h = *w * c->mina + 0.5; //shrink it, rounding up
 		}
 		if (baseismin) { /* increment calculation requires this */
 			*w -= c->basew;
@@ -369,27 +397,33 @@ int applysizehints(Client* c, int* x, int* y, int* w, int* h, int interact) {
 		}
 		/* adjust for increment value */
 		if (c->incw)
-			*w -= *w % c->incw;
+			*w -= *w % c->incw; //round down to a multiple of incw
 		if (c->inch)
-			*h -= *h % c->inch;
+			*h -= *h % c->inch; //round down to a multiple of inch
 		/* restore base dimensions */
-		*w = MAX(*w + c->basew, c->minw);
-		*h = MAX(*h + c->baseh, c->minh);
+		*w = MAX(*w + c->basew, c->minw); //also add basew and apply minw
+		*h = MAX(*h + c->baseh, c->minh); //also add baseh and apply minh
 		if (c->maxw)
-			*w = MIN(*w, c->maxw);
+			*w = MIN(*w, c->maxw); //apply maxw
 		if (c->maxh)
-			*h = MIN(*h, c->maxh);
+			*h = MIN(*h, c->maxh); //apply maxh
 	}
-	return* x != c->x || *y != c->y || *w != c->w || *h != c->h;
+	return *x != c->x || *y != c->y || *w != c->w || *h != c->h;
 }
 
 void arrange(Monitor* m) {
-  /*!
+  /*! \brief Update a monitor's layout.
+   *
+   * This will update visibility of all windows in a monitor, arrange its layout
+   * and update the X window stack. If NULL is passed, all monitors are arranged
+   * but their X stack is not updated.
+   *
+   * \sa arrangemon()
   **/
 
 	if (m)
 		showhide(m->stack);
-	else for (m = mons; m; m = m->next)
+	else for (m = mons; m; m = m->next) //all monitors
 		showhide(m->stack);
 	if (m) {
 		arrangemon(m);
@@ -399,7 +433,10 @@ void arrange(Monitor* m) {
 }
 
 void arrangemon(Monitor* m) {
-  /*!
+  /*! \brief Update monitor layout symbol to that of the currently selected
+   * layout and call arrange callback for that layout.
+   *
+   * \sa arrange()
   **/
 
 	strncpy(m->ltsymbol, m->lt[m->sellt]->symbol, sizeof m->ltsymbol);
@@ -527,7 +564,7 @@ void cleanupmon(Monitor* mon) {
 }
 
 void clientmessage(XEvent* e) {
-  /*!
+  /*! \brief Handler for ClientMessage events.
   **/
 
 	XClientMessageEvent* cme = &e->xclient;
@@ -535,19 +572,19 @@ void clientmessage(XEvent* e) {
 
 	if (!c)
 		return;
-	if (cme->message_type == netatom[NetWMState]) {
+	if (cme->message_type == netatom[NetWMState]) { //received "_NET_WM_STATE"
 		if (cme->data.l[1] == netatom[NetWMFullscreen]
-		|| cme->data.l[2] == netatom[NetWMFullscreen])
+		|| cme->data.l[2] == netatom[NetWMFullscreen]) //client was maximized
 			setfullscreen(c, (cme->data.l[0] == 1 /* _NET_WM_STATE_ADD    */
 				|| (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */ && !c->isfullscreen)));
-	} else if (cme->message_type == netatom[NetActiveWindow]) {
+	} else if (cme->message_type == netatom[NetActiveWindow]) { //received "_NET_ACTIVE_WINDOW"
 		if (c != selmon->sel && !c->isurgent)
-			seturgent(c, 1);
+			seturgent(c, 1); //a window wants to be active but isn't, make it urgent
 	}
 }
 
 void configure(Client* c) {
-  /*!
+  /*! \brief Notify client of changes to its window geometry.
   **/
 
 	XConfigureEvent ce;
@@ -596,7 +633,7 @@ void configurenotify(XEvent* e) {
 }
 
 void configurerequest(XEvent* e) {
-  /*!
+  /*! \brief Handler for ConfigureRequest events.
   **/
 
 	Client* c;
@@ -604,38 +641,38 @@ void configurerequest(XEvent* e) {
 	XConfigureRequestEvent* ev = &e->xconfigurerequest;
 	XWindowChanges wc;
 
-	if ((c = wintoclient(ev->window))) {
-		if (ev->value_mask & CWBorderWidth)
+	if ((c = wintoclient(ev->window))) { //it is a client window
+		if (ev->value_mask & CWBorderWidth) //change border width
 			c->bw = ev->border_width;
-		else if (c->isfloating || !selmon->lt[selmon->sellt]->arrange) {
+		else if (c->isfloating || !selmon->lt[selmon->sellt]->arrange) { //if window is floating
 			m = c->mon;
-			if (ev->value_mask & CWX) {
+			if (ev->value_mask & CWX) { //set new X-position
 				c->oldx = c->x;
 				c->x = m->mx + ev->x;
 			}
-			if (ev->value_mask & CWY) {
+			if (ev->value_mask & CWY) { //set new Y-position
 				c->oldy = c->y;
 				c->y = m->my + ev->y;
 			}
-			if (ev->value_mask & CWWidth) {
+			if (ev->value_mask & CWWidth) { //set new width
 				c->oldw = c->w;
 				c->w = ev->width;
 			}
-			if (ev->value_mask & CWHeight) {
+			if (ev->value_mask & CWHeight) { //set new height
 				c->oldh = c->h;
 				c->h = ev->height;
 			}
-			if ((c->x + c->w) > m->mx + m->mw && c->isfloating)
+			if ((c->x + c->w) > m->mx + m->mw && c->isfloating) //hits right edge and is not floating just because of the layout
 				c->x = m->mx + (m->mw / 2 - WIDTH(c) / 2); /* center in x direction */
-			if ((c->y + c->h) > m->my + m->mh && c->isfloating)
+			if ((c->y + c->h) > m->my + m->mh && c->isfloating) //hits bottom edge and is not floating just because of the layout
 				c->y = m->my + (m->mh / 2 - HEIGHT(c) / 2); /* center in y direction */
-			if ((ev->value_mask & (CWX|CWY)) && !(ev->value_mask & (CWWidth|CWHeight)))
-				configure(c);
-			if (ISVISIBLE(c))
-				XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
-		} else
-			configure(c);
-	} else {
+			if ((ev->value_mask & (CWX|CWY)) && !(ev->value_mask & (CWWidth|CWHeight))) //changed position but not size
+				configure(c); //notify the client
+			if (ISVISIBLE(c)) //otherwise it's pointless
+				XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h); //configure window position and size
+		} else //didn't change border width, but window is not floating
+			configure(c); //just notify the client, although no changes have been made
+	} else { //it is a window created by the WM
 		wc.x = ev->x;
 		wc.y = ev->y;
 		wc.width = ev->width;
@@ -1335,15 +1372,21 @@ Monitor* recttomon(int x, int y, int w, int h) {
 }
 
 void resize(Client* c, int x, int y, int w, int h, int interact) {
-  /*!
+  /*! \brief Resizes a client's window, taking into account size hints (cf. resizeclient()).
+   * \param c [in] The client which window is to be resized.
+   * \param x [in] The desired X coordinate of the top-left corner of the window.
+   * \param y [in] The desired Y coordinate of the top-left corner of the window.
+   * \param w [in] The desired width of the window (not including border).
+   * \param h [in] The desired height of the window (not including border).
+   * \param interact [in] Whether the window can lie completely outside its monitor.
   **/
 
-	if (applysizehints(c, &x, &y, &w, &h, interact))
+	if (applysizehints(c, &x, &y, &w, &h, interact)) //if the obtained values are different from the client's
 		resizeclient(c, x, y, w, h);
 }
 
 void resizeclient(Client* c, int x, int y, int w, int h) {
-  /*!
+  /*! \brief Change client's window geometry. Does not take into account size hints (cf. resize()).
   **/
 
 	XWindowChanges wc;
@@ -1556,22 +1599,24 @@ void setfocus(Client* c) {
 }
 
 void setfullscreen(Client* c, int fullscreen) {
-  /*!
+  /*! \brief Sets a client window's fullscreen status.
+   *
+   * Note that all window geometry parameters are preserved.
   **/
 
-	if (fullscreen && !c->isfullscreen) {
+	if (fullscreen && !c->isfullscreen) { //must become fullscreen
 		XChangeProperty(dpy, c->win, netatom[NetWMState], XA_ATOM, 32,
-			PropModeReplace, (unsigned char*)&netatom[NetWMFullscreen], 1);
+			PropModeReplace, (unsigned char*)&netatom[NetWMFullscreen], 1); //make the window fullscreen
 		c->isfullscreen = 1;
 		c->oldstate = c->isfloating;
 		c->oldbw = c->bw;
 		c->bw = 0;
 		c->isfloating = 1;
 		resizeclient(c, c->mon->mx, c->mon->my, c->mon->mw, c->mon->mh);
-		XRaiseWindow(dpy, c->win);
-	} else if (!fullscreen && c->isfullscreen){
+		XRaiseWindow(dpy, c->win); //hide all other windows
+	} else if (!fullscreen && c->isfullscreen){ //must stop being fullscreen
 		XChangeProperty(dpy, c->win, netatom[NetWMState], XA_ATOM, 32,
-			PropModeReplace, (unsigned char*)0, 0);
+			PropModeReplace, (unsigned char*)0, 0); //make it not fulscreen
 		c->isfullscreen = 0;
 		c->isfloating = c->oldstate;
 		c->bw = c->oldbw;
@@ -1702,21 +1747,21 @@ void seturgent(Client* c, int urg) {
 }
 
 void showhide(Client* c) {
-  /*!
+  /*! \brief Apply visibility of all clients in a stack, placing them inside or outside the screen.
   **/
 
 	if (!c)
 		return;
-	if (ISVISIBLE(c)) {
+	if (ISVISIBLE(c)) { //if at least one tag of this window is selected
 		/* show clients top down */
-		XMoveWindow(dpy, c->win, c->x, c->y);
-		if ((!c->mon->lt[c->mon->sellt]->arrange || c->isfloating) && !c->isfullscreen)
+		XMoveWindow(dpy, c->win, c->x, c->y); //move it into the screen
+		if ((!c->mon->lt[c->mon->sellt]->arrange || c->isfloating) && !c->isfullscreen) //if floating but not fullscreen
 			resize(c, c->x, c->y, c->w, c->h, 0);
-		showhide(c->snext);
+		showhide(c->snext); //recursively show next client
 	} else {
 		/* hide clients bottom up */
-		showhide(c->snext);
-		XMoveWindow(dpy, c->win, WIDTH(c) * -2, c->y);
+		showhide(c->snext); //recursively hide next client
+		XMoveWindow(dpy, c->win, WIDTH(c) * -2, c->y); //take it out of the screen
 	}
 }
 
@@ -2165,6 +2210,8 @@ void view(const Arg* arg) {
 
 Client* wintoclient(Window w) {
   /*! \brief Get client associated with a window.
+   *
+   * If there is none, returns NULL.
   **/
 
 	Client* c;
