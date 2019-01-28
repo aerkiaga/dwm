@@ -96,7 +96,7 @@ Drw* drw_create(Display* dpy, int screen, Window root, unsigned int w, unsigned 
 }
 
 void drw_resize(Drw* drw, unsigned int w, unsigned int h) {
-	/*!
+	/*! \brief Resize a given drawing context.
   **/
 
 	if (!drw)
@@ -110,7 +110,7 @@ void drw_resize(Drw* drw, unsigned int w, unsigned int h) {
 }
 
 void drw_free(Drw* drw) {
-	/*!
+	/*! \brief Destroy a drawing context.
   **/
 
 	XFreePixmap(drw->dpy, drw->drawable);
@@ -472,7 +472,7 @@ Cur* drw_cur_create(Drw* drw, int shape) {
 }
 
 void drw_cur_free(Drw* drw, Cur* cursor) {
-	/*!
+	/*! \brief Destroy a cursor.
   **/
 
 	if (!cursor)
