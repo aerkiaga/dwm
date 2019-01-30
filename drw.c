@@ -193,13 +193,13 @@ Fnt* drw_fontset_create(Drw* drw, const char* fonts[], size_t fontcount) {
 	return (drw->fonts = ret);
 }
 
-void drw_fontset_free(Fnt* font) {
+void drw_fontset_free(Fnt* set) {
 	/*! \brief Destroy a fontset.
   **/
 
-	if (font) {
-		drw_fontset_free(font->next); //call recursively to start from the end of the list
-		xfont_free(font);
+	if (set) {
+		drw_fontset_free(set->next); //call recursively to start from the end of the list
+		xfont_free(set);
 	}
 }
 
