@@ -119,7 +119,7 @@ void drw_free(Drw* drw) {
 }
 
 static Fnt* xfont_create(Drw* drw, const char* fontname, FcPattern* fontpattern) {
-	/*! \brief Creates font from either name or pattern.
+	/*! \brief Create a font from either name or pattern.
 	 *
 	 * This function is an implementation detail. Library users should use
 	 * drw_fontset_create() instead.
@@ -163,7 +163,7 @@ static Fnt* xfont_create(Drw* drw, const char* fontname, FcPattern* fontpattern)
 }
 
 static void xfont_free(Fnt* font) {
-	/*!
+	/*! \brief Destroy a font.
   **/
 
 	if (!font)
@@ -194,11 +194,11 @@ Fnt* drw_fontset_create(Drw* drw, const char* fonts[], size_t fontcount) {
 }
 
 void drw_fontset_free(Fnt* font) {
-	/*!
+	/*! \brief Destroy a fontset.
   **/
 
 	if (font) {
-		drw_fontset_free(font->next);
+		drw_fontset_free(font->next); //call recursively to start from the end of the list
 		xfont_free(font);
 	}
 }
@@ -236,7 +236,7 @@ Clr* drw_scm_create(Drw* drw, const char* clrnames[], size_t clrcount) {
 }
 
 void drw_setfontset(Drw* drw, Fnt* set) {
-	/*!
+	/*! \brief Set the fontset for a drawing context.
   **/
 
 	if (drw)

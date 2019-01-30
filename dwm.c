@@ -1853,12 +1853,14 @@ void showhide(Client* c) {
 }
 
 void sigchld(int unused) {
-  /*!
+  /*! \brief This function sets itself as the handler for SIGCHLD signals.
+   * Whenever a child process terminates, it will be removed from the process
+   * table. It need only be called once at startup.
   **/
 
-	if (signal(SIGCHLD, sigchld) == SIG_ERR)
+	if (signal(SIGCHLD, sigchld) == SIG_ERR) //set itself as handler for SIGCHLD
 		die("can't install SIGCHLD handler:");
-	while (0 < waitpid(-1, NULL, WNOHANG));
+	while (0 < waitpid(-1, NULL, WNOHANG)); //let the system reap any terminated child processes
 }
 
 void spawn(const Arg* arg) {
