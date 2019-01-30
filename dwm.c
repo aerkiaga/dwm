@@ -427,7 +427,7 @@ void arrange(Monitor* m) {
    *
    * This will update visibility of all windows in a monitor, arrange its layout
    * and update the X window stack. If NULL is passed, all monitors are arranged
-   * but their X stack is not updated.
+   * but their X stack is not updated and their windows not redrawn.
    *
    * \sa arrangemon()
   **/
@@ -447,7 +447,7 @@ void arrangemon(Monitor* m) {
   /*! \brief Update monitor layout symbol to that of the currently selected
    * layout and call arrange callback for that layout.
    *
-   * \sa arrange()
+   * \sa arrange(), layouts
   **/
 
 	strncpy(m->ltsymbol, m->lt[m->sellt]->symbol, sizeof m->ltsymbol);
@@ -475,6 +475,7 @@ void attachstack(Client* c) {
 
 void buttonpress(XEvent* e) {
   /*! \brief Handler for ButtonPress events.
+   * \sa handler
   **/
 
 	unsigned int i, x, click;
@@ -578,6 +579,7 @@ void cleanupmon(Monitor* mon) {
 
 void clientmessage(XEvent* e) {
   /*! \brief Handler for ClientMessage events.
+   * \sa handler
   **/
 
 	XClientMessageEvent* cme = &e->xclient;
@@ -618,6 +620,7 @@ void configure(Client* c) {
 
 void configurenotify(XEvent* e) {
   /*! \brief Handler for ConfigureNotify events.
+   * \sa handler
   **/
 
 	Monitor* m;
@@ -647,6 +650,7 @@ void configurenotify(XEvent* e) {
 
 void configurerequest(XEvent* e) {
   /*! \brief Handler for ConfigureRequest events.
+   * \sa handler
   **/
 
 	Client* c;
@@ -718,6 +722,7 @@ Monitor* createmon(void) {
 
 void destroynotify(XEvent* e) {
   /*! \brief Handler for DestroyNotify events.
+   * \sa handler
   **/
 
 	Client* c;
@@ -756,17 +761,21 @@ void detachstack(Client* c) {
 	}
 }
 
-Monitor* dirtomon(int dir)
-{
+Monitor* dirtomon(int dir) {
+  /*! \brief Returns the monitor in the specified direction from the selected one.
+   * \param dir [in] If negative or zero, the previous monitor
+   * is returned; if positive, the next monitor is returned.
+  **/
+
 	Monitor* m = NULL;
 
 	if (dir > 0) {
-		if (!(m = selmon->next))
-			m = mons;
+		if (!(m = selmon->next)) //next monitor
+			m = mons; //wrap around to first
 	} else if (selmon == mons)
-		for (m = mons; m->next; m = m->next);
+		for (m = mons; m->next; m = m->next); //wrap around to last
 	else
-		for (m = mons; m->next != selmon; m = m->next);
+		for (m = mons; m->next != selmon; m = m->next); //previous monitor
 	return m;
 }
 
@@ -837,6 +846,7 @@ void drawbars(void) {
 
 void enternotify(XEvent* e) {
   /*! \brief Handler for EnterNotify events.
+   * \sa handler
   **/
 
 	Client* c;
@@ -857,6 +867,7 @@ void enternotify(XEvent* e) {
 
 void expose(XEvent* e) {
   /*! \brief Handler for Expose events.
+   * \sa handler
   **/
 
 	Monitor* m;
@@ -867,11 +878,16 @@ void expose(XEvent* e) {
 }
 
 void focus(Client* c) {
-  /*! \brief Focus a particular client's window, or no window.
+  /*! \brief Focus a particular client's window, or the first visible window in the selected monitor.
+   *
+   * Note that the first visible window in the selected monitor is usually the
+   * already-focused window, unless it has been made no longer visible. Also,
+   * this function will redraw all bar windows so as to reflect the new state.
+   *
    * \sa setfocus()
   **/
 
-	if (!c || !ISVISIBLE(c))
+	if (!c || !ISVISIBLE(c)) //find the first visible window
 		for (c = selmon->stack; c && !ISVISIBLE(c); c = c->snext);
 	if (selmon->sel && selmon->sel != c) //if another client is focused
 		unfocus(selmon->sel, 0);
@@ -895,6 +911,7 @@ void focus(Client* c) {
 
 void focusin(XEvent* e) {
   /*! \brief Handler for FocusIn events.
+   * \sa handler
   **/
   /* there are some broken focus acquiring clients needing extra handling */
 
@@ -905,22 +922,28 @@ void focusin(XEvent* e) {
 }
 
 void focusmon(const Arg* arg) {
-  /*!
+  /*! \brief Focus the monitor in the specified direction from the selected one.
+   * \param arg [in] Its Arg::i field is evaluated. If negative or zero, the
+   * previous monitor is selected; if positive, the next monitor is selected.
+   *
+   * \sa keys
   **/
 
 	Monitor* m;
 
-	if (!mons->next)
+	if (!mons->next) //there is only one monitor
 		return;
 	if ((m = dirtomon(arg->i)) == selmon)
 		return;
 	unfocus(selmon->sel, 0);
 	selmon = m;
-	focus(NULL);
+	focus(NULL); //focus first window in new monitor
 }
 
 void focusstack(const Arg* arg) {
-  /*!
+  /*! \brief Switch focus to the previous or next client in the list.
+   * \param arg [in] If its Arg::i field is negative or zero, the previous window is selected; if it is positive, the next window is selected.
+   * \sa keys
   **/
 
 	Client* c = NULL, *i;
@@ -928,19 +951,19 @@ void focusstack(const Arg* arg) {
 	if (!selmon->sel)
 		return;
 	if (arg->i > 0) {
-		for (c = selmon->sel->next; c && !ISVISIBLE(c); c = c->next);
-		if (!c)
-			for (c = selmon->clients; c && !ISVISIBLE(c); c = c->next);
+		for (c = selmon->sel->next; c && !ISVISIBLE(c); c = c->next); //next visible window from the selected one
+		if (!c) //if we reached the end
+			for (c = selmon->clients; c && !ISVISIBLE(c); c = c->next); //first visible window
 	} else {
-		for (i = selmon->clients; i != selmon->sel; i = i->next)
-			if (ISVISIBLE(i))
-				c = i;
-		if (!c)
-			for (; i; i = i->next)
+		for (i = selmon->clients; i != selmon->sel; i = i->next) //for all clients up to and not including the selected one
+			if (ISVISIBLE(i)) //only those which are visible
+				c = i; //at the end, c will be set to the previous visible client to the selected one
+		if (!c) //if the selected client is the first
+			for (; i; i = i->next) //find the last visible client
 				if (ISVISIBLE(i))
 					c = i;
 	}
-	if (c) {
+	if (c) { //if we found a client
 		focus(c);
 		restack(selmon);
 	}
@@ -1073,10 +1096,12 @@ void grabkeys(void) {
 }
 
 void incnmaster(const Arg* arg) {
-  /*!
+  /*! \brief Increase or decrease the maximum number of windows in the master area by the specified amount.
+   * \param arg [in] The amount specified in its Arg::i field is added to the current setting.
+   * \sa keys
   **/
 
-	selmon->nmaster = MAX(selmon->nmaster + arg->i, 0);
+	selmon->nmaster = MAX(selmon->nmaster + arg->i, 0); //cannot be negative
 	arrange(selmon);
 }
 
@@ -1098,6 +1123,7 @@ static int isuniquegeom(XineramaScreenInfo* unique, size_t n, XineramaScreenInfo
 
 void keypress(XEvent* e) {
   /*! \brief Handler for KeyPress events.
+   * \sa handler
   **/
 
 	unsigned int i;
@@ -1114,16 +1140,20 @@ void keypress(XEvent* e) {
 }
 
 void killclient(const Arg* arg) {
-  /*!
+  /*! \brief Kills the selected window's client.
+   * \sa keys
   **/
 
 	if (!selmon->sel)
 		return;
-	if (!sendevent(selmon->sel, wmatom[WMDelete])) {
-		XGrabServer(dpy);
-		XSetErrorHandler(xerrordummy);
-		XSetCloseDownMode(dpy, DestroyAll);
-		XKillClient(dpy, selmon->sel->win);
+	if (!sendevent(selmon->sel, wmatom[WMDelete])) { //send WM_DELETE_WINDOW to the client
+    /* the client may handle the message for things like a
+     * confirmation dialog. If it doesn't, just destroy its window
+    **/
+		XGrabServer(dpy); //prevent race conditions
+		XSetErrorHandler(xerrordummy); //ignore errors
+		XSetCloseDownMode(dpy, DestroyAll); //make sure that all client resources will be destroyed
+		XKillClient(dpy, selmon->sel->win); //kill it
 		XSync(dpy, False);
 		XSetErrorHandler(xerror);
 		XUngrabServer(dpy);
@@ -1192,11 +1222,12 @@ void manage(Window w, XWindowAttributes* wa) {
 	c->mon->sel = c; //and select the new client
 	arrange(c->mon);
 	XMapWindow(dpy, c->win);
-	focus(NULL); //focus no window
+	focus(NULL); //focus the first visible window in the selected monitor
 }
 
 void mappingnotify(XEvent* e) {
   /*! \brief Handler for MappingNotify events.
+   * \sa handler
   **/
 
 	XMappingEvent* ev = &e->xmapping;
@@ -1208,6 +1239,7 @@ void mappingnotify(XEvent* e) {
 
 void maprequest(XEvent* e) {
   /*! \brief Handler for MapRequest events.
+   * \sa handler
   **/
 
 	static XWindowAttributes wa;
@@ -1222,7 +1254,8 @@ void maprequest(XEvent* e) {
 }
 
 void monocle(Monitor* m) {
-  /*!
+  /*! \brief Arrange callback for the monocle layout.
+   * \sa layouts
   **/
 
 	unsigned int n = 0;
@@ -1230,15 +1263,16 @@ void monocle(Monitor* m) {
 
 	for (c = m->clients; c; c = c->next)
 		if (ISVISIBLE(c))
-			n++;
+			n++; //count visible windows
 	if (n > 0) /* override layout symbol */
 		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
 	for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
-		resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, 0);
+		resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, 0); //maximize all clients
 }
 
 void motionnotify(XEvent* e) {
   /*! \brief Handler for MotionNotify events.
+   * \sa handler
   **/
 
 	static Monitor* mon = NULL; //this contains the last monitor where the mouse pointer was
@@ -1256,7 +1290,13 @@ void motionnotify(XEvent* e) {
 }
 
 void movemouse(const Arg* arg) {
-  /*!
+  /*! \brief Move the selected window using the mouse.
+   *
+   * After receiving a ButtonPress event, this function can be called, which
+   * allows the user to drag the selected window. The function will block until
+   * a ButtonRelease event is received.
+   *
+   * \sa buttons, resizemouse()
   **/
 
 	int x, y, ocx, ocy, nx, ny;
@@ -1270,70 +1310,73 @@ void movemouse(const Arg* arg) {
 	if (c->isfullscreen) /* no support moving fullscreen windows by mouse */
 		return;
 	restack(selmon);
-	ocx = c->x;
+	ocx = c->x; //original client position
 	ocy = c->y;
 	if (XGrabPointer(dpy, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
-		None, cursor[CurMove]->cursor, CurrentTime) != GrabSuccess)
+		None, cursor[CurMove]->cursor, CurrentTime) != GrabSuccess) //we want to grab the mouse pointer and change its shape
 		return;
-	if (!getrootptr(&x, &y))
+	if (!getrootptr(&x, &y)) //get initial mouse coordinates
 		return;
-	do {
-		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
+	do { //now run in a loop until the mouse button is released
+		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev); //block and receive events
 		switch(ev.type) {
 		case ConfigureRequest:
 		case Expose:
 		case MapRequest:
-			handler[ev.type](&ev);
+			handler[ev.type](&ev); //keep handling other events as usual
 			break;
 		case MotionNotify:
-			if ((ev.xmotion.time - lasttime) <= (1000 / 60))
+			if ((ev.xmotion.time - lasttime) <= (1000 / 60)) //only handle events up to 60 times per second
 				continue;
 			lasttime = ev.xmotion.time;
 
-			nx = ocx + (ev.xmotion.x - x);
+			nx = ocx + (ev.xmotion.x - x); //new client position
 			ny = ocy + (ev.xmotion.y - y);
 			if (abs(selmon->wx - nx) < snap)
-				nx = selmon->wx;
+				nx = selmon->wx; //snap to left edge of monitor
 			else if (abs((selmon->wx + selmon->ww) - (nx + WIDTH(c))) < snap)
-				nx = selmon->wx + selmon->ww - WIDTH(c);
+				nx = selmon->wx + selmon->ww - WIDTH(c); //snap to right edge of monitor
 			if (abs(selmon->wy - ny) < snap)
-				ny = selmon->wy;
+				ny = selmon->wy; //snap to top edge of monitor
 			else if (abs((selmon->wy + selmon->wh) - (ny + HEIGHT(c))) < snap)
-				ny = selmon->wy + selmon->wh - HEIGHT(c);
+				ny = selmon->wy + selmon->wh - HEIGHT(c); //snap to bottom edge of monitor
 			if (!c->isfloating && selmon->lt[selmon->sellt]->arrange
 			&& (abs(nx - c->x) > snap || abs(ny - c->y) > snap))
-				togglefloating(NULL);
+				togglefloating(NULL); //if a tiled window is "pulled" a certain distance, make it floating
 			if (!selmon->lt[selmon->sellt]->arrange || c->isfloating)
-				resize(c, nx, ny, c->w, c->h, 1);
+				resize(c, nx, ny, c->w, c->h, 1); //if the window is floating, move it to the new postion, possibly crossing monitor boundaries
 			break;
 		}
 	} while (ev.type != ButtonRelease);
 	XUngrabPointer(dpy, CurrentTime);
-	if ((m = recttomon(c->x, c->y, c->w, c->h)) != selmon) {
+	if ((m = recttomon(c->x, c->y, c->w, c->h)) != selmon) { //if the client is lying mostly on another monitor
 		sendmon(c, m);
 		selmon = m;
-		focus(NULL);
+		focus(NULL); //focus the first visible window in the selected monitor
 	}
 }
 
-Client* nexttiled(Client* c)
-{
-	for (; c && (c->isfloating || !ISVISIBLE(c)); c = c->next);
+Client* nexttiled(Client* c) {
+  /*! \brief Get the first tiled client starting from, and including c.
+  **/
+
+	for (; c && (c->isfloating || !ISVISIBLE(c)); c = c->next); //skip all floating and invisible windows
 	return c;
 }
 
 void pop(Client* c) {
-  /*!
+  /*! \brief Bring a window to the top of the stack and focus it.
   **/
 
 	detach(c);
-	attach(c);
+	attach(c); //re-attach at the top of the stack
 	focus(c);
 	arrange(c->mon);
 }
 
 void propertynotify(XEvent* e) {
   /*! \brief Handler for PropertyNotify events.
+   * \sa handler
   **/
 
 	Client* c;
@@ -1371,10 +1414,11 @@ void propertynotify(XEvent* e) {
 }
 
 void quit(const Arg* arg) {
-  /*!
+  /*! \brief Quit dwm.
+   * \sa keys, main()
   **/
 
-	running = 0;
+	running = 0; //see main()
 }
 
 Monitor* recttomon(int x, int y, int w, int h) {
@@ -1425,7 +1469,13 @@ void resizeclient(Client* c, int x, int y, int w, int h) {
 }
 
 void resizemouse(const Arg* arg) {
-  /*!
+  /*! \brief Resize the selected window using the mouse.
+   *
+   * After receiving a ButtonPress event, this function can be called, which
+   * allows the user to resize the selected window. The function will block
+   * until a ButtonRelease event is received.
+   *
+   * \sa buttons, movemouse()
   **/
 
 	int ocx, ocy, nw, nh;
@@ -1439,46 +1489,46 @@ void resizemouse(const Arg* arg) {
 	if (c->isfullscreen) /* no support resizing fullscreen windows by mouse */
 		return;
 	restack(selmon);
-	ocx = c->x;
+	ocx = c->x; //original client position
 	ocy = c->y;
 	if (XGrabPointer(dpy, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
-		None, cursor[CurResize]->cursor, CurrentTime) != GrabSuccess)
+		None, cursor[CurResize]->cursor, CurrentTime) != GrabSuccess) //we want to grab the mouse pointer and change its shape
 		return;
-	XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
-	do {
-		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
+	XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1); //warp pointer to the bottom-right corner of the client
+	do { //now run in a loop until the mouse button is released
+		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev); //block and receive events
 		switch(ev.type) {
 		case ConfigureRequest:
 		case Expose:
 		case MapRequest:
-			handler[ev.type](&ev);
+			handler[ev.type](&ev); //keep handling other events as usual
 			break;
 		case MotionNotify:
-			if ((ev.xmotion.time - lasttime) <= (1000 / 60))
+			if ((ev.xmotion.time - lasttime) <= (1000 / 60)) //only handle events up to 60 times per second
 				continue;
 			lasttime = ev.xmotion.time;
 
-			nw = MAX(ev.xmotion.x - ocx - 2 * c->bw + 1, 1);
+			nw = MAX(ev.xmotion.x - ocx - 2 * c->bw + 1, 1); //new client size
 			nh = MAX(ev.xmotion.y - ocy - 2 * c->bw + 1, 1);
 			if (c->mon->wx + nw >= selmon->wx && c->mon->wx + nw <= selmon->wx + selmon->ww
 			&& c->mon->wy + nh >= selmon->wy && c->mon->wy + nh <= selmon->wy + selmon->wh)
-			{
+			{ //if the mouse pointer is within the selected monitor
 				if (!c->isfloating && selmon->lt[selmon->sellt]->arrange
 				&& (abs(nw - c->w) > snap || abs(nh - c->h) > snap))
-					togglefloating(NULL);
+					togglefloating(NULL); //if a tiled window is "pulled" a certain distance, make it floating
 			}
 			if (!selmon->lt[selmon->sellt]->arrange || c->isfloating)
-				resize(c, c->x, c->y, nw, nh, 1);
+				resize(c, c->x, c->y, nw, nh, 1); //if the window is floating, set it to the new size, possibly crossing monitor boundaries
 			break;
 		}
 	} while (ev.type != ButtonRelease);
-	XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1);
+	XWarpPointer(dpy, None, c->win, 0, 0, 0, 0, c->w + c->bw - 1, c->h + c->bw - 1); //warp pointer to the bottom-right corner of the client, in case it isn't there
 	XUngrabPointer(dpy, CurrentTime);
-	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev));
-	if ((m = recttomon(c->x, c->y, c->w, c->h)) != selmon) {
+	while (XCheckMaskEvent(dpy, EnterWindowMask, &ev)); //remove all EnterNotify events from the queue
+	if ((m = recttomon(c->x, c->y, c->w, c->h)) != selmon) { //if the client is lying mostly on another monitor
 		sendmon(c, m);
 		selmon = m;
-		focus(NULL);
+		focus(NULL); //focus the first visible window in the selected monitor
 	}
 }
 
@@ -1488,7 +1538,7 @@ void restack(Monitor* m) {
    * Floating windows will be placed on top of all other windows, followed by
    * the bar window, and finally all the other client windows in the order they
    * appear in Monitor::stack. If the selected layout of the monitor is
-   * floating, however, all windows will be floating.
+   * floating, however, all windows will be floating. All windows are redrawn.
   **/
 
 	Client* c;
@@ -1554,7 +1604,7 @@ void scan(void) {
 }
 
 void sendmon(Client* c, Monitor* m) {
-  /*!
+  /*! \brief Send a client to another monitor, and unfocus it.
   **/
 
 	if (c->mon == m)
@@ -1566,7 +1616,7 @@ void sendmon(Client* c, Monitor* m) {
 	c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
 	attach(c);
 	attachstack(c);
-	focus(NULL);
+	focus(NULL); //focus the first visible window in the selected monitor
 	arrange(NULL);
 }
 
@@ -1582,6 +1632,7 @@ void setclientstate(Client* c, long state) {
 
 int sendevent(Client* c, Atom proto) {
   /*! \brief Send event to client with a protocol.
+   * \return Whether the client accepts the specified protocol.
    *
    * The event will only be sent if the client's window accepts *proto*.
   **/
@@ -1654,31 +1705,43 @@ void setfullscreen(Client* c, int fullscreen) {
 }
 
 void setlayout(const Arg* arg) {
-  /*!
+  /*! \brief Change the default monitor layout.
+   * \param arg [in] Its Arg::v field can be a pointer to the new layout, or NULL.
+   *
+   * This toggles the default monitor's Monitor::sellt property, which serves to
+   * keep track of the two last used layouts. Then, if the passed value is not
+   * NULL, the new layout is applied, substituting the oldest layout of the two
+   * in Monitor::lt.
+   *
+   * \sa layouts, keys, buttons
   **/
 
-	if (!arg || !arg->v || arg->v != selmon->lt[selmon->sellt])
+	if (!arg || !arg->v || arg->v != selmon->lt[selmon->sellt]) //default action: toggle layout
 		selmon->sellt ^= 1;
-	if (arg && arg->v)
+	if (arg && arg->v) //set new layout
 		selmon->lt[selmon->sellt] = (Layout*)arg->v;
-	strncpy(selmon->ltsymbol, selmon->lt[selmon->sellt]->symbol, sizeof selmon->ltsymbol);
-	if (selmon->sel)
-		arrange(selmon);
+	strncpy(selmon->ltsymbol, selmon->lt[selmon->sellt]->symbol, sizeof selmon->ltsymbol); //set new layout symbol
+	if (selmon->sel) //if there is a selected client
+		arrange(selmon); //apply layout (also draws the bar)
 	else
-		drawbar(selmon);
+		drawbar(selmon); //only draw the bar
 }
 
 /* arg > 1.0 will set mfact absolutely */
 void setmfact(const Arg* arg) {
-  /*!
+  /*! \brief Change master area width factor (fraction of the monitor occupied by it).
+   * \param arg [in] Its Arg::f field is evaluated. If it is less than 1.0, its
+   * value is added to the current setting. If it is higher, 1.0 is subtracted
+   * and the value is set absolutely as the new factor.
+   * \sa keys
   **/
 
 	float f;
 
-	if (!arg || !selmon->lt[selmon->sellt]->arrange)
+	if (!arg || !selmon->lt[selmon->sellt]->arrange) //must be >0, and not applicable in floating layouts
 		return;
 	f = arg->f < 1.0 ? arg->f + selmon->mfact : arg->f - 1.0;
-	if (f < 0.1 || f > 0.9)
+	if (f < 0.1 || f > 0.9) //these are the limits on mfact value
 		return;
 	selmon->mfact = f;
 	arrange(selmon);
@@ -1799,16 +1862,26 @@ void sigchld(int unused) {
 }
 
 void spawn(const Arg* arg) {
-  /*!
+  /*! \brief Executes a command in a new process.
+   * \param arg [in] Its Arg::v field must contain a pointer to an array of
+   * char* where the first points to a string containing the path of the program
+   * to be run, followed by zero or more strings containing the arguments to
+   * pass, and a final NULL pointer.
+   *
+   * Note that special handling is done for dmenu.
+   *
+   * \sa keys, buttons
   **/
 
 	if (arg->v == dmenucmd)
-		dmenumon[0] = '0' + selmon->num;
+		dmenumon[0] = '0' + selmon->num; //tell dmenu the monitor number
 	if (fork() == 0) {
+    /* we are in the child process */
 		if (dpy)
-			close(ConnectionNumber(dpy));
-		setsid();
-		execvp(((char**)arg->v)[0], (char**)arg->v);
+			close(ConnectionNumber(dpy)); //close connection with the X server
+		setsid(); //start a new session
+		execvp(((char**)arg->v)[0], (char**)arg->v); //execute some command
+    /* we are not running the new program, so an error occurred */
 		fprintf(stderr, "dwm: execvp %s", ((char**)arg->v)[0]);
 		perror(" failed");
 		exit(EXIT_SUCCESS);
@@ -1816,64 +1889,77 @@ void spawn(const Arg* arg) {
 }
 
 void tag(const Arg* arg) {
-  /*!
+  /*! \brief Replace the selected window's tags.
+   * \param arg [in] Its Arg::ui field must contain the new tags to apply.
+   *
+   * If no tag is specified, the window will be left unchanged.
+   *
+   * \sa keys, buttons
   **/
 
-	if (selmon->sel && arg->ui & TAGMASK) {
+	if (selmon->sel && arg->ui & TAGMASK) { //if we are applying at least one tag to the selected window
 		selmon->sel->tags = arg->ui & TAGMASK;
-		focus(NULL);
+		focus(NULL); //focus the first visible window in the selected monitor
 		arrange(selmon);
 	}
 }
 
 void tagmon(const Arg* arg) {
-  /*!
+  /*! \brief Send the selected window into the monitor in the selected direction.
+   * \param arg	[in] Its Arg::i field is evaluated. If negative or zero, the
+   * window is sent into the previous monitor; if positive, the window is sent
+   * into the next monitor.
+   *
+   * \sa keys
   **/
 
-	if (!selmon->sel || !mons->next)
+	if (!selmon->sel || !mons->next) //if no selected window or only one monitor
 		return;
-	sendmon(selmon->sel, dirtomon(arg->i));
+	sendmon(selmon->sel, dirtomon(arg->i)); //send the selected window in that direction
 }
 
 void tile(Monitor* m) {
-  /*!
+  /*! \brief Arrange callback for the tiled layout.
+   * \sa layouts
   **/
 
 	unsigned int i, n, h, mw, my, ty;
 	Client* c;
 
-	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
+	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++); //count the number of tiled windows
 	if (n == 0)
 		return;
 
-	if (n > m->nmaster)
-		mw = m->nmaster ? m->ww * m->mfact : 0;
+	if (n > m->nmaster) //if we need to have a stack area
+		mw = m->nmaster ? m->ww * m->mfact : 0; //set master area width
 	else
-		mw = m->ww;
-	for (i = my = ty = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
-		if (i < m->nmaster) {
-			h = (m->wh - my) / (MIN(n, m->nmaster) - i);
+		mw = m->ww; //master will fill whole space
+	for (i = my = ty = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++) //for every tiled window
+		if (i < m->nmaster) { //put it in master area
+			h = (m->wh - my) / (MIN(n, m->nmaster) - i); //calculate window height
 			resize(c, m->wx, m->wy + my, mw - (2*c->bw), h - (2*c->bw), 0);
-			my += HEIGHT(c);
-		} else {
-			h = (m->wh - ty) / (n - i);
+			my += HEIGHT(c); //next master window's position
+		} else { //put it in stack area
+			h = (m->wh - ty) / (n - i); //calculate window height
 			resize(c, m->wx + mw, m->wy + ty, m->ww - mw - (2*c->bw), h - (2*c->bw), 0);
-			ty += HEIGHT(c);
+			ty += HEIGHT(c); //next stack window's position
 		}
 }
 
 void togglebar(const Arg* arg) {
-  /*!
+  /*! \brief Show or hide the bar window.
+   * \sa keys
   **/
 
-	selmon->showbar = !selmon->showbar;
+	selmon->showbar = !selmon->showbar; //invert status
 	updatebarpos(selmon);
-	XMoveResizeWindow(dpy, selmon->barwin, selmon->wx, selmon->by, selmon->ww, bh);
+	XMoveResizeWindow(dpy, selmon->barwin, selmon->wx, selmon->by, selmon->ww, bh); //actually resize it
 	arrange(selmon);
 }
 
 void togglefloating(const Arg* arg) {
-  /*!
+  /*! \brief Toggles selected window's floating status. If the window is fixed-size, it is always left floating.
+   * \sa keys, buttons
   **/
 
 	if (!selmon->sel)
@@ -1883,12 +1969,18 @@ void togglefloating(const Arg* arg) {
 	selmon->sel->isfloating = !selmon->sel->isfloating || selmon->sel->isfixed;
 	if (selmon->sel->isfloating)
 		resize(selmon->sel, selmon->sel->x, selmon->sel->y,
-			selmon->sel->w, selmon->sel->h, 0);
+			selmon->sel->w, selmon->sel->h, 0); //resize to its true size (i.e. taking size hints into account)
 	arrange(selmon);
 }
 
 void toggletag(const Arg* arg) {
-  /*!
+  /*! \brief Toggle specified tags in the selected window.
+   * \param arg [in] Its Arg::ui field must contain the desired tags to invert.
+   *
+   * All tags will not be unset, at least one must remain. Otherwise, this
+   * function will leave all tags in the window unchanged.
+   *
+   * \sa keys, buttons
   **/
 
 	unsigned int newtags;
@@ -1896,7 +1988,7 @@ void toggletag(const Arg* arg) {
 	if (!selmon->sel)
 		return;
 	newtags = selmon->sel->tags ^ (arg->ui & TAGMASK);
-	if (newtags) {
+	if (newtags) { //must contain at least one tag
 		selmon->sel->tags = newtags;
 		focus(NULL);
 		arrange(selmon);
@@ -1904,12 +1996,18 @@ void toggletag(const Arg* arg) {
 }
 
 void toggleview(const Arg* arg) {
-  /*!
+  /*! \brief Toggle specified tags in the current tagset.
+   * \param arg [in] Its Arg::ui field must contain the desired tags to invert.
+   *
+   * All tags will not be unselected, at least one must remain. Otherwise, this
+   * function will leave all tags unchanged.
+   *
+   * \sa keys, buttons
   **/
 
 	unsigned int newtagset = selmon->tagset[selmon->seltags] ^ (arg->ui & TAGMASK);
 
-	if (newtagset) {
+	if (newtagset) { //must contain at least one tag
 		selmon->tagset[selmon->seltags] = newtagset;
 		focus(NULL);
 		arrange(selmon);
@@ -1956,13 +2054,14 @@ void unmanage(Client* c, int destroyed) {
 		XUngrabServer(dpy);
 	}
 	free(c);
-	focus(NULL); //focus no window
+	focus(NULL); //focus the first visible window in the selected monitor
 	updateclientlist();
 	arrange(m);
 }
 
 void unmapnotify(XEvent* e) {
   /*! \brief Handler for UnmapNotify events.
+   * \sa handler
   **/
 
 	Client* c;
@@ -2225,7 +2324,11 @@ void updatewmhints(Client* c) {
 }
 
 void view(const Arg* arg) {
-  /*! \brief If the current tagset is different from the one specified, switch to the other tagset, and set it to the one specified.
+  /*! \brief If the current tagset is different from the one specified, switch
+   * to the other tagset, and, if the specified tagset contains at least one
+   * tag, set it as the new tagset.
+   *
+   * \sa keys, buttons
   **/
 
 	if ((arg->ui & TAGMASK) == selmon->tagset[selmon->seltags]) //if all the specified tags are selected
@@ -2233,7 +2336,7 @@ void view(const Arg* arg) {
 	selmon->seltags ^= 1; /* toggle sel tagset */
 	if (arg->ui & TAGMASK)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK; //select exactly those tags
-	focus(NULL); //focus no window
+	focus(NULL); //focus the first visible window in the selected monitor
 	arrange(selmon);
 }
 
@@ -2313,16 +2416,21 @@ int xerrorstart(Display* dpy, XErrorEvent* ee) {
 }
 
 void zoom(const Arg* arg) {
-  /*!
+  /*! \brief Toggle window between master and stack areas.
+   *
+   * If there is more than one master window, toggle between first master
+   * position and the rest of the master area plus the stack area.
+   *
+   * \sa keys, buttons
   **/
 
 	Client* c = selmon->sel;
 
 	if (!selmon->lt[selmon->sellt]->arrange
-	|| (selmon->sel && selmon->sel->isfloating))
+	|| (selmon->sel && selmon->sel->isfloating)) //if the selected window is floating
 		return;
-	if (c == nexttiled(selmon->clients))
-		if (!c || !(c = nexttiled(c->next)))
+	if (c == nexttiled(selmon->clients)) //if c is already the first tiled window (in master)
+		if (!c || !(c = nexttiled(c->next))) //pop the next tiled window
 			return;
 	pop(c);
 }
