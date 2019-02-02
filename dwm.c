@@ -73,7 +73,7 @@ typedef union {
 	unsigned int ui;
 	float f;
 	const void* v;
-} Arg;
+} Arg; //!< A generic argument to be passed to a callback function
 
 typedef struct {
 	unsigned int click;
@@ -81,13 +81,12 @@ typedef struct {
 	unsigned int button;
 	void (*func)(const Arg* arg);
 	const Arg arg;
-} Button;
+} Button; //!< A mouse button shorcut
 
 typedef struct Monitor Monitor;
 typedef struct Client Client;
 struct Client {
 	char name[256];
-	float mina, maxa;
 	int x, y, w, h;
 	int oldx, oldy, oldw, oldh;
   /** @name Size hints
@@ -95,14 +94,15 @@ struct Client {
   **/
   /**@{*/
 	int basew, baseh, incw, inch, maxw, maxh, minw, minh;
+  float mina, maxa;
   /**@}*/
 	int bw; //!< Border width
   int oldbw; //!< Saved border width
 	unsigned int tags;
 	int isfixed; //!< Client window size is fixed due to its size hints
   int isfloating, isurgent, neverfocus, oldstate, isfullscreen;
-	Client* next;
-	Client* snext;
+	Client* next; //!< Next client in list
+	Client* snext; //!< Next client in stack
 	Monitor* mon;
 	Window win;
 };
@@ -112,7 +112,7 @@ typedef struct {
 	KeySym keysym;
 	void (*func)(const Arg*);
 	const Arg arg;
-} Key;
+} Key; //!< A keyboard shortcut
 
 typedef struct {
 	const char* symbol;
@@ -121,33 +121,45 @@ typedef struct {
 
 struct Monitor {
 	char ltsymbol[16];
-	float mfact;
-	int nmaster;
-	int num;
+	float mfact; //!< Factor of master area to total width
+	int nmaster; //!< Maximum number of windows in master area
+	int num; //!< Monitor number, index in monitor list
 	int by;               //!< bar geometry
-	int mx, my, mw, mh;   //!< screen size
-	int wx, wy, ww, wh;   //!< window area
-	unsigned int seltags;
-	unsigned int sellt;
-	unsigned int tagset[2];
+  /*! @name Screen size */
+  /**@{*/
+	int mx, my, mw, mh;
+  /**@}*/
+  /*! @name Window area */
+  /**@{*/
+	int wx, wy, ww, wh;
+  /**@}*/
+	unsigned int seltags; //!< Which of the two saved tagsets is active
+  unsigned int tagset[2]; //!< Two saved sets of selected tags
+	unsigned int sellt; //!< Which of the two saved layouts is active
+  const Layout* lt[2]; //!< Two saved layouts
 	int showbar; //!< show/hide bar
 	int topbar; //!< bar at the top/bottom
-	Client* clients;
-	Client* sel;
-	Client* stack;
+	Client* clients; //!< List of clients
+	Client* sel; //!< Selected client
+	Client* stack; //!< Client stack
 	Monitor* next;
 	Window barwin;
-	const Layout* lt[2];
 };
 
 typedef struct {
+  /** @name Matched properties
+   * Properties of the window that must match
+   * to apply the rule. See applyrules().
+  **/
+  /**@{*/
 	const char* class;
 	const char* instance;
 	const char* title;
+  /**@}*/
 	unsigned int tags;
 	int isfloating;
 	int monitor;
-} Rule;
+} Rule; //!< A rule for creating windows
 
 /* function declarations */
 static void applyrules(Client* c);
@@ -246,12 +258,15 @@ static void zoom(const Arg* arg);
 static const char broken[] = "broken"; //!< Default title, name or class for broken clients with no title, name or class
 static char stext[256]; //!< Status text
 static int screen;
-static int sw, sh;           //!< X display screen geometry width, height
+/*! @name X display screen geometry */
+/**@{*/
+static int sw, sh;
+/**@}*/
 static int bh;               //!< Bar height
 static int blw = 0;          //!< Bar layout symbol width
 static int lrpad;            //!< Sum of left and right padding for text
 static int (*xerrorxlib)(Display*, XErrorEvent*); //!< Xlib's default error handler
-static unsigned int numlockmask = 0;
+static unsigned int numlockmask = 0; //!< Modifier mask of the numlock key
 static void (*handler[LASTEvent]) (XEvent*) = {
 	[ButtonPress] = buttonpress,
 	[ClientMessage] = clientmessage,
@@ -267,9 +282,9 @@ static void (*handler[LASTEvent]) (XEvent*) = {
 	[MotionNotify] = motionnotify,
 	[PropertyNotify] = propertynotify,
 	[UnmapNotify] = unmapnotify
-};
+}; //!< List of event handlers
 static Atom wmatom[WMLast], netatom[NetLast];
-static int running = 1;
+static int running = 1; //!< If set to 0, terminate
 static Cur* cursor[CurLast];
 static Clr** scheme; //!< Loaded color scheme
 static Display* dpy;
@@ -2220,6 +2235,8 @@ void updatenumlockmask(void) {
 
 	numlockmask = 0;
 	modmap = XGetModifierMapping(dpy); //get keys that are used as modifiers
+  if(!modmap) //just in case...
+    return;
 	for (i = 0; i < 8; i++) //for each modifier
 		for (j = 0; j < modmap->max_keypermod; j++) //for each key in modifier
 			if (modmap->modifiermap[i * modmap->max_keypermod + j]
